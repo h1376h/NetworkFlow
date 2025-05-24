@@ -151,17 +151,8 @@ class GreedyMaxFlowScene(Scene):
         # Sort paths by their initial capacity (greedy approach)
         all_paths.sort(key=lambda p: network.get_path_capacity(p), reverse=True)
         
-        algorithm_title = Text(
-            "Greedy Max Flow Algorithm",
-            font_size=28,
-            color=YELLOW
-        ).to_edge(DOWN)
-        
-        self.play(Write(algorithm_title))
-        self.wait()
-        
         # Prepare Mobjects for path description and capacity, update them in loop
-        path_desc_mobj = Text("", font_size=24).next_to(algorithm_title, UP, buff=0.5)
+        path_desc_mobj = Text("", font_size=24).to_edge(DOWN)
         capacity_text_mobj = Text("", font_size=24).next_to(path_desc_mobj, UP, buff=0.2)
         
         # Process each path
@@ -174,7 +165,7 @@ class GreedyMaxFlowScene(Scene):
             path_desc_mobj.become(
                 Text(f"Path {path_idx + 1}: {' → '.join(map(str, path))}", font_size=24)
             )
-            path_desc_mobj.next_to(algorithm_title, UP, buff=0.5)
+            path_desc_mobj.to_edge(DOWN)
             
             capacity_text_mobj.become(
                 Text(f"Path capacity: {path_capacity}", font_size=24)
@@ -196,6 +187,22 @@ class GreedyMaxFlowScene(Scene):
             
             # Highlight edges in the path
             self.play(*[edge.animate.set_color(YELLOW) for edge in path_edges])
+            
+            # --- Highlight the bottleneck edge ---
+            # Find bottleneck (min residual capacity) edge index
+            bottleneck_val = float('inf')
+            bottleneck_idxs = []
+            for i in range(len(path) - 1):
+                u, v = path[i], path[i + 1]
+                res_cap = network.get_residual_capacity(u, v)
+                if res_cap < bottleneck_val:
+                    bottleneck_val = res_cap
+                    bottleneck_idxs = [i]
+                elif res_cap == bottleneck_val:
+                    bottleneck_idxs.append(i)
+            bottleneck_edges = [path_edges[i] for i in bottleneck_idxs]
+            if bottleneck_edges:
+                self.play(*[edge.animate.set_color(ORANGE) for edge in bottleneck_edges], run_time=0.5)
             
             # Create data packet with the flow value
             packet = DataPacket(value=path_capacity, color=YELLOW)
@@ -267,12 +274,8 @@ class GreedyMaxFlowScene(Scene):
             self.play(Write(flow_text))
             self.wait()
             self.play(FadeOut(flow_text), FadeOut(path_desc_mobj), FadeOut(capacity_text_mobj))
-            
-            # algorithm_title remains visible
-        
+                    
         # Show final maximum flow
-        # Fade out algorithm title before showing final max flow text from visualizer
-        self.play(FadeOut(algorithm_title))
         visualizer.show_max_flow(source=source)
         
         self.wait(2)
