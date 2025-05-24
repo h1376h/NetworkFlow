@@ -49,6 +49,12 @@ class GreedyMaxFlowScene(Scene):
         # Visualize the network
         visualizer.create_from_flow_network(network)
         
+        # Ensure all edge labels are properly initialized and added to scene
+        for idx, edge in enumerate(visualizer.edges):
+            if edge.flow_label not in self.mobjects:
+                self.add(edge.flow_label)
+            visualizer.edge_labels[idx] = edge.flow_label
+        
         # Initialize sink flow label
         self.sink_flow_label = Text(f"{self.sink_flow_value}", font_size=24, color=WHITE)
         if visualizer.nodes:

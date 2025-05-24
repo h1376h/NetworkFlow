@@ -233,14 +233,7 @@ class FlowNetworkVisualizer:
         return path_capacity
     
     def update_flow(self, path: List[int], flow_value: int, run_time: float = 1.0):
-        """
-        Update the flow along a path and visualize the change.
-        
-        Args:
-            path: List of node indices representing a path
-            flow_value: Amount of flow to add along the path
-            run_time: Animation run time
-        """
+        """Update the flow along a path and visualize the change."""
         if not self.flow_network:
             return
             
@@ -256,11 +249,12 @@ class FlowNetworkVisualizer:
                     edge = self.edges[idx]
                     new_flow = self.flow_network.flow[(u, v)]
                     
-                    # Remove old label from edge_labels list
-                    if idx < len(self.edge_labels) and self.edge_labels[idx] == edge.flow_label:
+                    # Remove old label from scene and edge_labels list
+                    if idx < len(self.edge_labels) and self.edge_labels[idx] is not None:
                         old_label = self.edge_labels[idx]
                         if old_label in self.scene.mobjects:
                             self.scene.remove(old_label)
+                        old_label.clear_updaters()
                     
                     # Animate flow update
                     edge.animate_flow_update(
@@ -309,18 +303,7 @@ class FlowNetworkVisualizer:
         return total_flow
     
     def run_ford_fulkerson(self, source: int = 0, sink: int = -1, step_by_step: bool = True, run_time: float = 1.0):
-        """
-        Run and visualize the Ford-Fulkerson algorithm.
-        
-        Args:
-            source: Source node index
-            sink: Sink node index (default: last node)
-            step_by_step: Whether to show each step or just the final result
-            run_time: Animation run time per step
-            
-        Returns:
-            The maximum flow value
-        """
+        """Run and visualize the Ford-Fulkerson algorithm."""
         if not self.flow_network:
             return 0
             
@@ -334,9 +317,20 @@ class FlowNetworkVisualizer:
                 self.flow_network.flow[(u, v)] = 0
                 
             # Reset flow in the visualization
-            for edge in self.edges:
+            for idx, edge in enumerate(self.edges):
+                # Remove old label from scene
+                if idx < len(self.edge_labels) and self.edge_labels[idx] is not None:
+                    old_label = self.edge_labels[idx]
+                    if old_label in self.scene.mobjects:
+                        self.scene.remove(old_label)
+                    old_label.clear_updaters()
+                
+                # Set new flow and update label
                 edge.set_flow(0)
+                
+                # Add new label to scene and update edge_labels list
                 self.scene.add(edge.flow_label)
+                self.edge_labels[idx] = edge.flow_label
         
         # Show algorithm title
         algo_title = Text("Ford-Fulkerson Algorithm", font_size=32, color=YELLOW).to_edge(UP)

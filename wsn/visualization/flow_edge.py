@@ -27,13 +27,17 @@ class FlowEdge(Arrow):
         self.flow_label = None
         self.update_label()
     
+    def set_flow(self, new_flow: int):
+        """Set the flow value and update the label"""
+        self.current_flow = new_flow
+        self.update_label()
+    
     def update_label(self):
         """Update the flow/capacity label on the edge"""
         # Remove old label completely if it exists
         if self.flow_label is not None:
             self.flow_label.clear_updaters()
-            if hasattr(self.flow_label, 'remove'):
-                self.flow_label.remove()
+            # Don't call remove() here as it might not exist
         
         # Create label showing flow/capacity
         mid_point = self.get_midpoint()
@@ -60,7 +64,6 @@ class FlowEdge(Arrow):
         if old_label is not None:
             if old_label in scene.mobjects:
                 scene.remove(old_label)
-            # Also remove from edge_labels list in visualizer if present
             old_label.clear_updaters()
         
         # Create new label
