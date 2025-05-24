@@ -37,7 +37,6 @@ class FlowEdge(Arrow):
         # Remove old label completely if it exists
         if self.flow_label is not None:
             self.flow_label.clear_updaters()
-            # Don't call remove() here as it might not exist
         
         # Create label showing flow/capacity
         mid_point = self.get_midpoint()
