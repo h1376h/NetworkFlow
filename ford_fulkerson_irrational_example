@@ -1,0 +1,12 @@
+// Ford-Fulkerson Non-Termination Example (Irrational Capacities)
+digraph {
+	s [label="Source (s)"]
+	t [label="Sink (t)"]
+	x1 [label="Node x1"]
+	x2 [label="Node x2"]
+	s -> x1 [label=1]
+	s -> x2 [label="M (e.g., 100)"]
+	x1 -> x2 [label=1]
+	x1 -> t [label=M]
+	x2 -> t [label="φ ≈ 0.618 (Irrational)"]
+}

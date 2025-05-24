@@ -1,0 +1,30 @@
+// Package Delivery Network
+digraph {
+	rankdir=LR
+	label="Shortest Augmenting Path to T2"
+	fontsize=20
+	T1 [label="📦  T1
+(Distribution Ctr)" fillcolor=lightgreen fontsize=10 shape=doublecircle style=filled]
+	F [label=F fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	C [label=C fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	T2 [label="📦  T2
+(Distribution Ctr)" fillcolor=lightgreen fontsize=10 shape=doublecircle style=filled]
+	D [label=D fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	E [label=E fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	B [label=B fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	S [label="🚚  S
+(Warehouse)" fillcolor=skyblue fontsize=10 shape=Mdiamond style=filled]
+	A [label=A fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	S -> A [label=10 color=red fontcolor=red fontsize=10 penwidth=3.0]
+	S -> B [label=12 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+	A -> C [label=8 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+	A -> D [label=4 color=red fontcolor=red fontsize=10 penwidth=3.0]
+	B -> D [label=7 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+	B -> E [label=6 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+	D -> T2 [label=6 color=red fontcolor=red fontsize=10 penwidth=3.0]
+	E -> T2 [label=10 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+	A -> B [label=3 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+	C -> D [label=2 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+	C -> F [label=5 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+	F -> T1 [label=7 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
+}

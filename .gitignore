@@ -1,0 +1,28 @@
+# Manim environment files
+network_env/
+
+# Media output folders
+media/
+**/media/
+
+# Logo directory
+logo/
+more/
+
+# SVG files
+*.svg
+
+# PDF files
+*.pdf
+
+# PPTX files
+*.pptx
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Manim cache
+*.manimcache
+.DS_Store

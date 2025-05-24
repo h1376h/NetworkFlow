@@ -1,0 +1,27 @@
+// Package Delivery Network
+digraph {
+	rankdir=LR
+	T2 [label="📦  T2
+(Distribution Ctr)" fillcolor=lightgreen shape=doublecircle style=filled]
+	D [fillcolor=whitesmoke shape=ellipse style=filled]
+	E [fillcolor=whitesmoke shape=ellipse style=filled]
+	C [fillcolor=whitesmoke shape=ellipse style=filled]
+	T1 [label="📦  T1
+(Distribution Ctr)" fillcolor=lightgreen shape=doublecircle style=filled]
+	B [fillcolor=whitesmoke shape=ellipse style=filled]
+	S [label="🚚  S
+(Warehouse)" fillcolor=lightblue shape=Mdiamond style=filled]
+	A [fillcolor=whitesmoke shape=ellipse style=filled]
+	S -> A [label=10 color=red fontcolor=red penwidth=2.5]
+	S -> B [label=12 color=gray]
+	A -> C [label=8 color=red fontcolor=red penwidth=2.5]
+	A -> D [label=4 color=gray]
+	B -> D [label=7 color=gray]
+	B -> E [label=6 color=gray]
+	C -> T1 [label=9 color=red fontcolor=red penwidth=2.5]
+	D -> T1 [label=5 color=gray]
+	D -> T2 [label=6 color=gray]
+	E -> T2 [label=10 color=gray]
+	A -> B [label=3 color=gray]
+	C -> D [label=2 color=gray]
+}
