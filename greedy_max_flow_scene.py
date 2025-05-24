@@ -38,7 +38,7 @@ class GreedyMaxFlowScene(Scene):
             min_capacity=2,
             max_capacity=10,
             x_spread=10,
-            y_spread=6
+            y_spread=3
         )
         
         network = FlowNetwork(nodes, edges)
