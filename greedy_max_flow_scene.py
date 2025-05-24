@@ -31,13 +31,13 @@ class GreedyMaxFlowScene(Scene):
         )
 
         # Create a layered flow network for demonstration
-        nodes_per_layer = [1, 3, 3, 1]  # Source, two middle layers, sink
+        nodes_per_layer = [1, 2, 3, 1]  # Source, two middle layers, sink
         nodes, edges = create_layered_flow_network(
             num_layers=4,
             nodes_per_layer=nodes_per_layer,
             min_capacity=2,
             max_capacity=10,
-            x_spread=10,
+            x_spread=11,
             y_spread=3
         )
         
