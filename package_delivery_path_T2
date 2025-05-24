@@ -3,18 +3,18 @@ digraph {
 	rankdir=LR
 	label="Shortest Augmenting Path to T2"
 	fontsize=20
-	T1 [label="📦  T1
-(Distribution Ctr)" fillcolor=lightgreen fontsize=10 shape=doublecircle style=filled]
-	F [label=F fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
 	C [label=C fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
-	T2 [label="📦  T2
-(Distribution Ctr)" fillcolor=lightgreen fontsize=10 shape=doublecircle style=filled]
-	D [label=D fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
-	E [label=E fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
-	B [label=B fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
 	S [label="🚚  S
 (Warehouse)" fillcolor=skyblue fontsize=10 shape=Mdiamond style=filled]
+	T2 [label="📦  T2
+(Distribution Ctr)" fillcolor=lightgreen fontsize=10 shape=doublecircle style=filled]
+	T1 [label="📦  T1
+(Distribution Ctr)" fillcolor=lightgreen fontsize=10 shape=doublecircle style=filled]
+	E [label=E fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
 	A [label=A fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	B [label=B fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	F [label=F fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
+	D [label=D fillcolor=whitesmoke fontsize=10 shape=ellipse style=filled]
 	S -> A [label=10 color=red fontcolor=red fontsize=10 penwidth=3.0]
 	S -> B [label=12 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
 	A -> C [label=8 color=dimgray fontcolor=dimgray fontsize=10 penwidth=1.5]
