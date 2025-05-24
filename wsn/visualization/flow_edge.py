@@ -29,11 +29,11 @@ class FlowEdge(Arrow):
     
     def update_label(self):
         """Update the flow/capacity label on the edge"""
-        # Don't try to remove if it doesn't exist yet
-        if self.flow_label:
-            # Just remove from parent mobject, not from scene
-            # (scene removal is handled in animate_flow_update)
-            self.flow_label.remove()
+        # Remove old label completely if it exists
+        if self.flow_label is not None:
+            self.flow_label.clear_updaters()
+            if hasattr(self.flow_label, 'remove'):
+                self.flow_label.remove()
         
         # Create label showing flow/capacity
         mid_point = self.get_midpoint()
@@ -43,39 +43,44 @@ class FlowEdge(Arrow):
         
         self.flow_label = Text(
             f"{self.current_flow}/{self.capacity}",
-            font_size=20
-        ).move_to(mid_point + 0.3 * perpendicular)
+            font_size=18  # Slightly smaller font
+        ).move_to(mid_point + 0.25 * perpendicular)  # Closer to edge
         
         return self.flow_label
     
-    def set_flow(self, flow_value: int):
-        """Set the current flow value and update the label"""
-        self.current_flow = flow_value
-        return self.update_label()
-    
     def animate_flow_update(self, new_flow: int, scene: Scene, run_time: float = 1.0):
         """Animate the edge changing its flow value"""
-        self.current_flow = new_flow
-        
-        # Show flow increase with animation
+        # Store old label reference
         old_label = self.flow_label
         
-        # First completely remove the old label from the scene
-        if old_label in scene.mobjects:
-            scene.remove(old_label)
+        # Update flow value
+        self.current_flow = new_flow
         
-        # Create a fresh new label
+        # Remove old label from scene completely
+        if old_label is not None:
+            if old_label in scene.mobjects:
+                scene.remove(old_label)
+            # Also remove from edge_labels list in visualizer if present
+            old_label.clear_updaters()
+        
+        # Create new label
         new_label = self.update_label()
         
         # Highlight edge briefly
         original_color = self.get_color()
         
-        # Add the new label to the scene explicitly
+        # Add the new label to the scene
         scene.add(new_label)
         
-        # Animate the edge color change only
-        scene.play(self.animate(run_time=run_time/2).set_color(YELLOW))
-        scene.play(self.animate(run_time=run_time/2).set_color(original_color))
+        # Animate the edge color change
+        scene.play(
+            self.animate(run_time=run_time/2).set_color(YELLOW),
+            run_time=run_time/2
+        )
+        scene.play(
+            self.animate(run_time=run_time/2).set_color(original_color),
+            run_time=run_time/2
+        )
         
-        # Make sure the flow_label reference is updated
+        # Update the flow_label reference
         self.flow_label = new_label

@@ -256,12 +256,21 @@ class FlowNetworkVisualizer:
                     edge = self.edges[idx]
                     new_flow = self.flow_network.flow[(u, v)]
                     
+                    # Remove old label from edge_labels list
+                    if idx < len(self.edge_labels) and self.edge_labels[idx] == edge.flow_label:
+                        old_label = self.edge_labels[idx]
+                        if old_label in self.scene.mobjects:
+                            self.scene.remove(old_label)
+                    
                     # Animate flow update
                     edge.animate_flow_update(
                         new_flow=new_flow,
                         scene=self.scene,
                         run_time=run_time
                     )
+                    
+                    # Update edge_labels list with new label
+                    self.edge_labels[idx] = edge.flow_label
     
     def show_max_flow(self, source: int = 0, sink: int = -1):
         """

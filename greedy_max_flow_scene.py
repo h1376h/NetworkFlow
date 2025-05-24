@@ -269,7 +269,7 @@ class GreedyMaxFlowScene(Scene):
                 f"Current total flow: {current_flow_val}",
                 font_size=28,
                 color=YELLOW
-            ).to_edge(DOWN)
+            ).next_to(title, DOWN, buff=0.5)
             
             self.play(Write(flow_text))
             self.wait()
