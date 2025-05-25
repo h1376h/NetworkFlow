@@ -64,33 +64,25 @@ class DinitzAlgorithmVisualizer(Scene):
             self.algo_status_mobj
         ).set_z_index(5)
         
-        # 1. Arrange internal elements: They will be left-aligned within the block.
         self.info_texts_group.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_MED)
         
-        # 2. Define the fixed Y-coordinate for the TOP of this group:
-        #    It will be BUFF_LARGE below the bottom of the (now cornered) main_title.
         self.fixed_info_texts_top_y = self.main_title.get_bottom()[1] - BUFF_LARGE
         
-        # 3. Position the group:
-        #    Horizontally centered (X=0).
-        #    Its TOP edge at self.fixed_info_texts_top_y.
-        #    Calculate its center Y based on its current height (from placeholder texts) and the fixed top Y.
         current_center_y = self.fixed_info_texts_top_y - (self.info_texts_group.height / 2)
         self.info_texts_group.move_to(np.array([0, current_center_y, 0]))
         
         self.add(self.info_texts_group)
 
-        # Level Display Group (Top-Right for BFS)
         self.level_display_vgroup = VGroup().set_z_index(5)
         self.level_display_vgroup.to_corner(UR, buff=BUFF_LARGE)
         self.add(self.level_display_vgroup)
 
     def _animate_text_update(self, old_mobj, new_mobj, new_text_content_str):
-        old_text_had_content = isinstance(old_mobj, Text) and old_mobj.text != ""
+        old_text_had_actual_content = isinstance(old_mobj, Text) and old_mobj.text != ""
         out_animation = None
         in_animation = None
 
-        if old_text_had_content:
+        if old_text_had_actual_content:
             out_animation = FadeOut(old_mobj, run_time=0.35)
         
         if new_text_content_str != "":
@@ -102,47 +94,40 @@ class DinitzAlgorithmVisualizer(Scene):
 
         if animations_to_play:
             self.play(*animations_to_play)
-        
-        if old_text_had_content and out_animation and old_mobj in self.mobjects:
-             self.remove(old_mobj)
-        elif old_mobj in self.mobjects and old_mobj is not new_mobj and old_mobj.text == "" : 
-             self.remove(old_mobj)
-
 
     def _update_text_generic(self, text_attr_name, new_text_str, font_size, weight, color, play_anim=True):
         old_mobj = getattr(self, text_attr_name)
+        was_placeholder = (old_mobj.text == "")
+
         new_mobj = Text(new_text_str, font_size=font_size, weight=weight, color=color)
 
         try:
             idx = self.info_texts_group.submobjects.index(old_mobj)
             self.info_texts_group.remove(old_mobj) 
+            
+            if was_placeholder and old_mobj in self.mobjects:
+                self.remove(old_mobj)
+            
             self.info_texts_group.insert(idx, new_mobj) 
         except ValueError: 
-            if old_mobj in self.mobjects: self.remove(old_mobj)
+            if old_mobj in self.mobjects:
+                self.remove(old_mobj)
             self.info_texts_group.add(new_mobj)
 
         setattr(self, text_attr_name, new_mobj) 
         
-        # Re-arrange the info_texts_group IN PLACE to account for new text.
         self.info_texts_group.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_MED)
 
-        # Reposition the group: Horizontally centered, with its TOP at fixed_info_texts_top_y.
         if hasattr(self, 'fixed_info_texts_top_y'):
-            # Calculate the new center Y based on the fixed top Y and current height of the group
             new_center_y = self.fixed_info_texts_top_y - (self.info_texts_group.height / 2)
             self.info_texts_group.move_to(np.array([0, new_center_y, 0]))
-        # else: # Fallback, should ideally not be hit.
-            # current_y_center = self.info_texts_group.get_center()[1]
-            # self.info_texts_group.move_to(np.array([0, current_y_center, 0]))
-
-
+            self.bring_to_front(self.info_texts_group) 
+        
         if play_anim:
             self._animate_text_update(old_mobj, new_mobj, new_text_str)
         else:
-            if old_mobj in self.mobjects and old_mobj.text != "": 
+            if not was_placeholder and old_mobj in self.mobjects:
                 self.remove(old_mobj)
-            # new_mobj is already part of info_texts_group, which is positioned.
-            # If new_text_str is not empty, it will appear. If empty, it's an empty Text mobject.
 
     def update_section_title(self, text_str, play_anim=True):
         self._update_text_generic("current_section_title_mobj", text_str, SECTION_TITLE_FONT_SIZE, BOLD, WHITE, play_anim)
@@ -176,7 +161,7 @@ class DinitzAlgorithmVisualizer(Scene):
         
         self.desired_large_scale = 1.6
 
-        self.update_section_title("1. Building the Network") # This will now use the new positioning
+        self.update_section_title("1. Building the Network")
 
         nodes_vgroup = VGroup()
         for i, v_id in enumerate(self.vertices_data):
@@ -195,7 +180,7 @@ class DinitzAlgorithmVisualizer(Scene):
         self.play(LaggedStart(*edge_grow_anims, lag_ratio=0.05), run_time=1.5)
 
         cap_labels_vgroup = VGroup()
-        self.update_status_text("Capacities Defined") # This will now use the new positioning
+        # self.update_status_text("Capacities Defined") # REMOVED AS REQUESTED
         manual_label_offsets = {
             (3,4): DOWN*0.1, (6,8): DOWN*0.1, (5,8): UP*0.15, (1,3): DOWN*0.15, (4,6): UP*0.15,
             (1,2): LEFT*0.05+UP*0.05, (1,4): LEFT*0.05+DOWN*0.05, (6,9):DOWN*0.05+RIGHT*0.05,
@@ -211,10 +196,13 @@ class DinitzAlgorithmVisualizer(Scene):
             cap_text = Text(str(cap), font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR).move_to(pos).set_z_index(1)
             self.edge_capacity_text_mobjects[(u,v)] = cap_text; cap_labels_vgroup.add(cap_text)
             cap_write_anims.append(Write(cap_text))
-        self.play(LaggedStart(*cap_write_anims, lag_ratio=0.05), run_time=1.5)
+        if cap_write_anims: # Ensure there's something to play if status text was the only thing
+            self.play(LaggedStart(*cap_write_anims, lag_ratio=0.05), run_time=1.5)
+        else:
+            self.wait(1.5) # Maintain timing if only status text was there
 
         flow_prefixes_vgroup = VGroup()
-        self.update_status_text("Initial Flow: 0 / Capacity") # This will now use the new positioning
+        # self.update_status_text("Initial Flow: 0 / Capacity") # REMOVED AS REQUESTED
         flow_prefix_anims_group = []
         for u,v,cap in self.edges_with_capacity_list:
             cap_text_mobj = self.edge_capacity_text_mobjects[(u,v)]
@@ -227,40 +215,16 @@ class DinitzAlgorithmVisualizer(Scene):
             flow_prefixes_vgroup.add(flow_val_mobj, slash_mobj)
             flow_prefix_anims_group.append(Write(flow_val_mobj))
             flow_prefix_anims_group.append(Write(slash_mobj))
-        self.play(LaggedStart(*flow_prefix_anims_group, lag_ratio=0.03), run_time=1.5)
-        
+        if flow_prefix_anims_group: # Ensure there's something to play
+            self.play(LaggedStart(*flow_prefix_anims_group, lag_ratio=0.03), run_time=1.5)
+        else:
+            self.wait(1.5) # Maintain timing
+
         self.network_display_group = VGroup(nodes_vgroup, edges_vgroup, cap_labels_vgroup, flow_prefixes_vgroup)
         
-        # Calculate target Y for network group, ensuring it's below info texts.
-        # The info_texts_group.get_bottom()[1] gives the y of the bottom of the info text block.
-        # We want the network to be below this.
-        # First, scale the network to see its height.
         temp_scaled_network_for_height = self.network_display_group.copy().scale(self.desired_large_scale)
-        
-        # Position network such that its top is below info_texts_group bottom, with a buffer.
-        # And then center it, or move it lower if needed for overall balance.
-        # A common strategy is to place it in the remaining lower portion of the screen.
-
-        # Let's calculate space available below info_texts_group
-        space_below_info_texts_top = self.fixed_info_texts_top_y - (-config.frame_height / 2) # from info_top to bottom_screen_edge
-        
-        # Tentative position: center the network in the space below the info texts
-        # This ensures it's below the info texts.
-        # We'll use the info_texts_group's bottom edge as a reference.
-        # Wait for info texts to potentially populate before getting its height accurately for this calc.
-        # However, for initial positioning, we might use a fixed offset or make sure graph is low.
-
-        # The original calculation placed it relative to the bottom of the frame:
-        network_target_y_original = (-config.frame_height / 2) + (temp_scaled_network_for_height.height / 2) + BUFF_XLARGE
-        # This network_target_y_original is for the *center* of the scaled network.
-        # Its top would be network_target_y_original + temp_scaled_network_for_height.height / 2
-        
-        # We need to ensure that self.fixed_info_texts_top_y - self.info_texts_group.height (bottom of info)
-        # is above network_target_y_original + temp_scaled_network_for_height.height / 2 (top of graph)
-        # This should generally hold if BUFF_LARGE for info_texts and BUFF_XLARGE for network are chosen well.
-        # The current logic for network_target_y should be fine, as it positions the graph low.
-        
-        target_position = np.array([0, network_target_y_original, 0])
+        network_target_y = (-config.frame_height / 2) + (temp_scaled_network_for_height.height / 2) + BUFF_XLARGE
+        target_position = np.array([0, network_target_y, 0])
         
         self.play(
             self.network_display_group.animate.scale(self.desired_large_scale).move_to(target_position)
@@ -268,7 +232,7 @@ class DinitzAlgorithmVisualizer(Scene):
         
         s_dot = self.node_mobjects[self.source_node][0]
         t_dot = self.node_mobjects[self.sink_node][0]
-        scaled_s_radius = s_dot.width / 2 # s_dot is already scaled as part of network_display_group
+        scaled_s_radius = s_dot.width / 2
         scaled_t_radius = t_dot.width / 2
 
         source_ring = Circle(
@@ -283,7 +247,7 @@ class DinitzAlgorithmVisualizer(Scene):
         self.play(Create(self.source_ring_mobj), Create(self.sink_ring_mobj), run_time=0.75)
 
         self.wait(1.0) 
-        self.update_status_text("") # Clear status
+        self.update_status_text("") # This one should be fine
         self.wait(0.5) 
 
         self.update_section_title("2. Dinitz Algorithm Execution")
@@ -294,17 +258,14 @@ class DinitzAlgorithmVisualizer(Scene):
         q_bfs = collections.deque(); self.levels = {v_id: -1 for v_id in self.vertices_data}
         current_bfs_level_num = 0; self.levels[self.source_node] = current_bfs_level_num; q_bfs.append(self.source_node)
         
-        # Get the scaled source dot for animation
-        s_dot_scaled = self.node_mobjects[self.source_node][0] # It's already part of the scaled group
-        self.play(s_dot_scaled.animate.set_color(LEVEL_COLORS[0]).scale(1.1), run_time=0.5) # Scale is relative to current
+        s_dot_scaled = self.node_mobjects[self.source_node][0]
+        self.play(s_dot_scaled.animate.set_color(LEVEL_COLORS[0]).scale(1.1), run_time=0.5)
         
         l_p0 = Text(f"L{current_bfs_level_num}:", font_size=LEVEL_TEXT_FONT_SIZE, color=LEVEL_COLORS[0])
         l_n0 = Text(f" {{{self.source_node}}}", font_size=LEVEL_TEXT_FONT_SIZE, color=WHITE)
         l0_vg = VGroup(l_p0,l_n0).arrange(RIGHT,buff=BUFF_VERY_SMALL)
         
         self.level_display_vgroup.add(l0_vg)
-        # self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL) # arrange after add
-        # self.level_display_vgroup.to_corner(UR, buff=BUFF_LARGE) # move after arrange
         self.play(Write(l0_vg))
         self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL).to_corner(UR, buff=BUFF_LARGE)
 
@@ -318,8 +279,7 @@ class DinitzAlgorithmVisualizer(Scene):
             nodes_found_next_lvl_set = set(); node_color_anims = []
 
             for u in nodes_to_process:
-                # Node mobjects are scaled, so surrounding rectangle needs to target the scaled one
-                node_to_indicate = self.node_mobjects[u] # This is the VGroup(dot, label)
+                node_to_indicate = self.node_mobjects[u]
                 ind_u = SurroundingRectangle(node_to_indicate,color=YELLOW_C,buff=0.02,stroke_width=1.5, corner_radius=0.05)
                 self.play(Create(ind_u), run_time=0.1) 
                 for v_n in self.adj[u]:
@@ -330,7 +290,7 @@ class DinitzAlgorithmVisualizer(Scene):
                         lvl_color = LEVEL_COLORS[target_level % len(LEVEL_COLORS)]
                         n_v_dot = self.node_mobjects[v_n][0]
                         n_v_lbl = self.node_mobjects[v_n][1]
-                        node_color_anims.append(n_v_dot.animate.set_color(lvl_color).scale(1.1)) # scale relative
+                        node_color_anims.append(n_v_dot.animate.set_color(lvl_color).scale(1.1))
                         rgb_c = color_to_rgb(lvl_color); lbl_c = BLACK if sum(rgb_c)>1.5 else WHITE
                         node_color_anims.append(n_v_lbl.animate.set_color(lbl_c))
                 self.play(FadeOut(ind_u), run_time=0.1)
@@ -344,13 +304,9 @@ class DinitzAlgorithmVisualizer(Scene):
                         if v_new in self.adj[u_prev] and self.levels[v_new] == self.levels[u_prev]+1:
                             res_cap = self.capacities[(u_prev,v_new)]-self.flow.get((u_prev,v_new),0)
                             if res_cap > 0 :
-                                edge_mo = self.edge_mobjects[(u_prev,v_new)] # Edge mobject is scaled
+                                edge_mo = self.edge_mobjects[(u_prev,v_new)]
                                 edge_c = LEVEL_COLORS[self.levels[u_prev]%len(LEVEL_COLORS)]
-                                # Ensure highlight width is appropriate for scaled edge
-                                current_stroke_width = edge_mo.get_stroke_width()
-                                target_highlight_width = LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH # This might be too thick if edge is thin
-                                # Use a relative factor or ensure LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH is appropriate for scaled edges
-                                edge_color_anims_lvl_links.append(edge_mo.animate.set_color(edge_c).set_stroke(width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH)) # Use absolute
+                                edge_color_anims_lvl_links.append(edge_mo.animate.set_color(edge_c).set_stroke(width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH))
             if edge_color_anims_lvl_links: self.play(AnimationGroup(*edge_color_anims_lvl_links, lag_ratio=0.1), run_time=0.5)
 
             if nodes_found_next_lvl_set:
@@ -361,11 +317,11 @@ class DinitzAlgorithmVisualizer(Scene):
                 
                 self.level_display_vgroup.add(l_vg)
                 self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL)
-                self.level_display_vgroup.to_corner(UR, buff=BUFF_LARGE) # always re-position
+                self.level_display_vgroup.to_corner(UR, buff=BUFF_LARGE)
                 
                 if self.level_display_vgroup.width > max_level_text_width:
                     self.level_display_vgroup.stretch_to_fit_width(max_level_text_width)
-                    self.level_display_vgroup.to_corner(UR, buff=BUFF_LARGE) # re-position after stretch
+                    self.level_display_vgroup.to_corner(UR, buff=BUFF_LARGE) 
 
                 self.play(Write(l_vg)); self.wait(0.3)
             if not q_bfs: break
@@ -388,17 +344,16 @@ class DinitzAlgorithmVisualizer(Scene):
             if is_lg_edge:
                 lg_edge_anims.append(edge_mo.animate.set_stroke(opacity=1.0, width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH).set_color(LEVEL_COLORS[self.levels[u]%len(LEVEL_COLORS)]))
             else:
-                non_lg_edge_anims.append(edge_mo.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR)) # Potentially also dim width
+                non_lg_edge_anims.append(edge_mo.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR))
         if non_lg_edge_anims: self.play(AnimationGroup(*non_lg_edge_anims, lag_ratio=0.05), run_time=0.5)
         if lg_edge_anims: self.play(AnimationGroup(*lg_edge_anims, lag_ratio=0.05), run_time=0.5)
         self.wait(1)
         self.update_status_text("Level Graph Isolated. Ready for DFS.", color=GREEN)
         
         self.wait(3)
-        # Check if there are mobjects to fade out to prevent error with empty Group
         mobjects_to_fade_list = [mob for mob in self.mobjects if mob is not None]
         if mobjects_to_fade_list:
             mobjects_to_fade = Group(*mobjects_to_fade_list)
-            if mobjects_to_fade.submobjects: # Ensure group is not empty
+            if mobjects_to_fade.submobjects:
                  self.play(FadeOut(mobjects_to_fade))
         self.wait(1)
