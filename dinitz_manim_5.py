@@ -64,36 +64,30 @@ class DinitzAlgorithmVisualizer(Scene):
         self.algo_status_mobj.next_to(self.phase_text_mobj, DOWN, buff=BUFF_SMALL, aligned_edge=LEFT)
         self.add(self.algo_status_mobj)
 
-    def _animate_text_update(self, old_mobj, new_mobj, new_text_content):
-        animations_out = []
-        animations_in = []
+    def _animate_text_update(self, old_mobj, new_mobj, new_text_content_str):
+        old_text_had_content = isinstance(old_mobj, Text) and old_mobj.text != ""
+
+        out_animation = None
+        in_animation = None
+
+        if old_text_had_content:
+            out_animation = FadeOut(old_mobj, run_time=0.35)
         
-        has_old_content = False
-        if isinstance(old_mobj, Text) and old_mobj.text != "": # Check Text.text for content
-            has_old_content = True
-        elif not isinstance(old_mobj, Text) and len(old_mobj.submobjects) > 0 : # Fallback for VGroups or other types
-             has_old_content = True
+        if new_text_content_str != "": # Only prepare FadeIn if there's new content
+            in_animation = FadeIn(new_mobj, run_time=0.35, shift=ORIGIN)
 
-
-        if old_mobj in self.mobjects:
-            if has_old_content:
-                animations_out.append(FadeOut(old_mobj, run_time=0.35))
-            if not animations_out: # if no fadeout (e.g. old was empty), ensure it's removed if present
-                 self.remove(old_mobj)
-
-        self.add(new_mobj)
-
-        if new_text_content != "": # Only FadeIn if there's actual new text
-            animations_in.append(FadeIn(new_mobj, run_time=0.35, shift=ORIGIN))
+        # Execute animations and manage mobjects
+        if out_animation:
+            self.play(out_animation)
+            # FadeOut should remove it, but to be sure if not, or if old_mobj wasn't faded (empty)
+            if old_mobj in self.mobjects : self.remove(old_mobj)
+        elif old_mobj in self.mobjects and old_mobj is not new_mobj : # old was empty placeholder, just remove
+             self.remove(old_mobj)
         
-        if animations_out:
-            self.play(*animations_out)
-            if old_mobj in self.mobjects: # Manim's FadeOut should remove it, but double check
-                self.remove(old_mobj)
-
-        if animations_in:
-            self.play(*animations_in)
-        # If new_text_content is empty, new_mobj (empty Text) is added as a placeholder but not faded in.
+        self.add(new_mobj) # Add new mobject (empty or with content)
+        if in_animation:
+            self.play(in_animation)
+        # If new_text_content_str is empty, new_mobj (empty Text) is added as a placeholder but not faded in.
 
     def update_section_title(self, text_str, play_anim=True):
         old_mobj = self.current_section_title_mobj
@@ -107,6 +101,7 @@ class DinitzAlgorithmVisualizer(Scene):
             self.add(new_mobj)
         self.current_section_title_mobj = new_mobj
         
+        # Reposition subsequent texts (these are immediate moves)
         self.phase_text_mobj.next_to(self.current_section_title_mobj, DOWN, buff=BUFF_MED, aligned_edge=LEFT)
         self.algo_status_mobj.next_to(self.phase_text_mobj, DOWN, buff=BUFF_SMALL, aligned_edge=LEFT)
 
@@ -156,7 +151,7 @@ class DinitzAlgorithmVisualizer(Scene):
         self.node_mobjects = {}; self.edge_mobjects = {};
         self.edge_capacity_text_mobjects = {}; self.edge_flow_val_text_mobjects = {};
         self.edge_slash_text_mobjects = {}
-        self.desired_large_scale = 1.6 
+        self.desired_large_scale = 2.0 
 
         self.update_section_title("1. Building the Network")
 
@@ -214,16 +209,16 @@ class DinitzAlgorithmVisualizer(Scene):
         
         self.network_display_group = VGroup(nodes_vgroup, edges_vgroup, cap_labels_vgroup, flow_prefixes_vgroup)
         
-        # Ensure algo_status_mobj (which should have "Initial Flow..." text) is on scene for next_to
         if self.algo_status_mobj not in self.mobjects: self.add(self.algo_status_mobj)
 
-        self.play(
-            self.network_display_group.animate.scale(self.desired_large_scale)
-                                          .next_to(self.algo_status_mobj, DOWN, buff=BUFF_XLARGE)
-        )
-        self.wait(1.5)
+        self.play(self.network_display_group.animate.scale(self.desired_large_scale))
         
-        self.update_status_text("") # Clear "Initial Flow..." status
+        network_target_y = self.algo_status_mobj.get_bottom()[1] - (self.network_display_group.height / 2) - BUFF_XLARGE
+        self.play(self.network_display_group.animate.move_to(np.array([0, network_target_y, 0])))
+        
+        self.wait(1.5) 
+        
+        self.update_status_text("") 
         self.wait(0.5)
 
         # --- Part B: Dynamic Dinitz Algorithm Animation ---
@@ -232,18 +227,10 @@ class DinitzAlgorithmVisualizer(Scene):
 
         self.update_phase_text("Phase 1")
         
-        final_corner_scale_of_original = 0.65 
-        scale_factor_for_corner = final_corner_scale_of_original / self.desired_large_scale
-        
-        network_move_animation = self.network_display_group.animate.scale(scale_factor_for_corner).to_corner(DL, buff=BUFF_MED)
-
         self.level_display_vgroup = VGroup()
-        # Create a dummy network in the target state to calculate its final position for layout purposes
-        dummy_network_in_corner = self.network_display_group.copy().scale(scale_factor_for_corner).to_corner(DL, buff=BUFF_MED)
-        self.level_display_vgroup.next_to(dummy_network_in_corner, RIGHT, buff=BUFF_LARGE, aligned_edge=UP)
-        self.add(self.level_display_vgroup) # Add empty, positioned group to the scene
-
-        self.play(network_move_animation) 
+        self.level_display_vgroup.to_corner(UR, buff=BUFF_LARGE) # Corrected from TR to UR
+        self.add(self.level_display_vgroup)
+        
         self.update_status_text("Building Level Graph (BFS from S=1)")
 
         q_bfs = collections.deque(); self.levels = {v_id: -1 for v_id in self.vertices_data}
@@ -256,12 +243,11 @@ class DinitzAlgorithmVisualizer(Scene):
         l_n0 = Text(f" {{{self.source_node}}}", font_size=LEVEL_TEXT_FONT_SIZE, color=WHITE)
         l0_vg = VGroup(l_p0,l_n0).arrange(RIGHT,buff=BUFF_VERY_SMALL)
         
-        l0_vg.align_to(self.level_display_vgroup, UP+LEFT) # Align to the container
-        self.level_display_vgroup.add(l0_vg) # Add to the VGroup container
+        l0_vg.align_to(self.level_display_vgroup, UP+LEFT)
+        self.level_display_vgroup.add(l0_vg)
         self.play(Write(l0_vg))
 
-        # Calculate max width for level text based on the actual position of level_display_vgroup
-        max_level_text_width = config.frame_width - self.level_display_vgroup.get_left()[0] - BUFF_MED 
+        max_level_text_width = config.frame_width * 0.35 
         
         while q_bfs:
             nodes_to_process = list(q_bfs); q_bfs.clear()
@@ -303,12 +289,12 @@ class DinitzAlgorithmVisualizer(Scene):
                 l_nx = Text(f" {{{n_str}}}", font_size=LEVEL_TEXT_FONT_SIZE, color=WHITE)
                 l_vg = VGroup(l_px,l_nx).arrange(RIGHT,buff=BUFF_VERY_SMALL)
                 l_vg.next_to(self.level_display_vgroup[-1],DOWN,aligned_edge=LEFT,buff=BUFF_SMALL)
-                
+                                
                 self.level_display_vgroup.add(l_vg)
                 if self.level_display_vgroup.width > max_level_text_width:
-                    # If text becomes too wide, scale the entire group to fit.
-                    # This might make text small if many long lines.
+                    current_ul_corner = self.level_display_vgroup.get_corner(UL) # Store UL before stretch
                     self.level_display_vgroup.stretch_to_fit_width(max_level_text_width)
+                    self.level_display_vgroup.move_to(current_ul_corner, aligned_edge=UL) # Re-align to original UL
 
                 self.play(Write(l_vg)); self.wait(0.3)
             if not q_bfs: break
