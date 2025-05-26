@@ -260,15 +260,14 @@ class DinitzAlgorithmVisualizer(Scene):
         
         s_dot_scaled = self.node_mobjects[self.source_node][0]
         self.play(s_dot_scaled.animate.set_color(LEVEL_COLORS[0]).scale(1.1), run_time=0.5)
-        
+
         l_p0 = Text(f"L{current_bfs_level_num}:", font_size=LEVEL_TEXT_FONT_SIZE, color=LEVEL_COLORS[0])
         l_n0 = Text(f" {{{self.source_node}}}", font_size=LEVEL_TEXT_FONT_SIZE, color=WHITE)
         l0_vg = VGroup(l_p0,l_n0).arrange(RIGHT,buff=BUFF_VERY_SMALL)
-        
-        self.level_display_vgroup.add(l0_vg)
-        self.play(Write(l0_vg))
-        self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL).to_corner(UR, buff=BUFF_LARGE)
 
+        self.level_display_vgroup.add(l0_vg)
+        self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL).to_corner(UR, buff=BUFF_LARGE)
+        self.play(Write(l0_vg))
 
         max_level_text_width = config.frame_width * 0.30
         
