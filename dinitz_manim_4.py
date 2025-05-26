@@ -1,266 +1,721 @@
 from manim import *
 import collections
 
-class DinitzManimExplanation(Scene):
+# --- Style and Layout Constants ---
+NODE_RADIUS = 0.28
+NODE_STROKE_WIDTH = 1.5
+EDGE_STROKE_WIDTH = 3.5
+ARROW_TIP_LENGTH = 0.18
+
+MAIN_TITLE_FONT_SIZE = 38
+SECTION_TITLE_FONT_SIZE = 28 # For text below main title
+PHASE_TEXT_FONT_SIZE = 22    # For text below section title
+STATUS_TEXT_FONT_SIZE = 20   # For text below phase title
+NODE_LABEL_FONT_SIZE = 16
+EDGE_CAPACITY_LABEL_FONT_SIZE = 12
+EDGE_FLOW_PREFIX_FONT_SIZE = 12
+LEVEL_TEXT_FONT_SIZE = 18
+
+MAIN_TITLE_SMALL_SCALE = 0.65
+
+BUFF_VERY_SMALL = 0.05
+BUFF_SMALL = 0.1
+BUFF_MED = 0.25
+BUFF_LARGE = 0.4
+BUFF_XLARGE = 0.6
+
+RING_COLOR = YELLOW_C
+RING_STROKE_WIDTH = 3.5
+RING_RADIUS_OFFSET = 0.1
+RING_Z_INDEX = 4
+
+LEVEL_COLORS = [RED_D, ORANGE, YELLOW_D, GREEN_D, BLUE_D, PURPLE_D, PINK]
+DEFAULT_NODE_COLOR = BLUE_E
+DEFAULT_EDGE_COLOR = GREY_C
+LABEL_TEXT_COLOR = DARK_GREY
+LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH = 4.5
+DFS_EDGE_TRY_WIDTH = LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH * 1.15
+DFS_PATH_EDGE_WIDTH = LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH * 1.25
+
+DIMMED_OPACITY = 0.20
+DIMMED_COLOR = GREY_BROWN
+
+TOP_CENTER_ANCHOR = UP * (config.frame_height / 2 - BUFF_SMALL)
+
+class DinitzAlgorithmVisualizer(Scene):
+
+    def setup_titles_and_placeholders(self):
+        # Initializes the main title and placeholders for other informational text.
+        self.main_title = Text("Visualizing Dinitz's Algorithm", font_size=MAIN_TITLE_FONT_SIZE)
+        self.main_title.move_to(TOP_CENTER_ANCHOR)
+        self.main_title.set_z_index(5) # Ensure title is on top
+        self.add(self.main_title)
+        self.play(Write(self.main_title), run_time=1)
+        self.wait(0.5)
+
+        # Placeholders for section titles, phase descriptions, and status updates.
+        self.current_section_title_mobj = Text("", font_size=SECTION_TITLE_FONT_SIZE, weight=BOLD)
+        self.phase_text_mobj = Text("", font_size=PHASE_TEXT_FONT_SIZE, weight=BOLD)
+        self.algo_status_mobj = Text("", font_size=STATUS_TEXT_FONT_SIZE)
+
+        # Grouping these texts for easier management and positioning.
+        self.info_texts_group = VGroup(
+            self.current_section_title_mobj,
+            self.phase_text_mobj,
+            self.algo_status_mobj
+        ).set_z_index(5) # Ensure these are also on top
+
+        self.info_texts_group.arrange(DOWN, center=True, buff=BUFF_MED)
+        self.info_texts_group.next_to(self.main_title, DOWN, buff=BUFF_MED)
+
+        self.add(self.info_texts_group)
+
+        # Placeholder for displaying levels found during BFS.
+        self.level_display_vgroup = VGroup().set_z_index(5)
+        self.level_display_vgroup.to_corner(UR, buff=BUFF_LARGE)
+        self.add(self.level_display_vgroup)
+
+
+    def _animate_text_update(self, old_mobj, new_mobj, new_text_content_str):
+        # Helper function to animate transitions between old and new text mobjects.
+        old_text_had_actual_content = isinstance(old_mobj, Text) and old_mobj.text != ""
+        out_animation = None
+        in_animation = None
+
+        if old_text_had_actual_content:
+            out_animation = FadeOut(old_mobj, run_time=0.35)
+
+        if new_text_content_str != "":
+            # Create new mobject only if there's new text.
+            in_animation = FadeIn(new_mobj, run_time=0.35, shift=ORIGIN)
+
+        animations_to_play = []
+        if out_animation: animations_to_play.append(out_animation)
+        if in_animation: animations_to_play.append(in_animation)
+
+        if animations_to_play:
+            self.play(*animations_to_play)
+
+    def _update_text_generic(self, text_attr_name, new_text_str, font_size, weight, color, play_anim=True):
+        # Generic function to update one of the informational text mobjects.
+        old_mobj = getattr(self, text_attr_name)
+        was_placeholder = (old_mobj.text == "") # Check if the old mobject was just an empty placeholder
+
+        new_mobj = Text(new_text_str, font_size=font_size, weight=weight, color=color)
+
+        # Replace old mobject with new one in the VGroup and scene.
+        try:
+            idx = self.info_texts_group.submobjects.index(old_mobj)
+            self.info_texts_group.remove(old_mobj)
+            # If the old mobject was a placeholder and part of the scene, remove it.
+            if was_placeholder and old_mobj in self.mobjects:
+                self.remove(old_mobj)
+            self.info_texts_group.insert(idx, new_mobj)
+        except ValueError: # pragma: no cover (Should not happen if setup is correct)
+            # Fallback if old_mobj wasn't in info_texts_group for some reason
+            if old_mobj in self.mobjects:
+                self.remove(old_mobj)
+            self.info_texts_group.add(new_mobj) # Add if it was never there or as a fallback
+
+        setattr(self, text_attr_name, new_mobj) # Update the attribute to point to the new mobject
+
+        # Rearrange the info_texts_group after update.
+        self.info_texts_group.arrange(DOWN, center=True, buff=BUFF_MED)
+        # Reposition relative to the main title if it exists.
+        if hasattr(self, 'main_title') and self.main_title in self.mobjects:
+             self.info_texts_group.next_to(self.main_title, DOWN, buff=BUFF_MED)
+
+        self.bring_to_front(self.info_texts_group) # Ensure it's visible
+
+        if play_anim:
+            self._animate_text_update(old_mobj, new_mobj, new_text_str)
+        else:
+            # If not animating, directly remove old and add new if necessary.
+            if old_mobj in self.mobjects and old_mobj is not new_mobj : self.remove(old_mobj)
+            if new_text_str != "" and new_mobj not in self.mobjects: self.add(new_mobj)
+            elif new_text_str == "" and new_mobj in self.mobjects : self.remove(new_mobj) # Remove if new text is empty
+
+    def update_section_title(self, text_str, play_anim=True):
+        # Updates the section title text.
+        self._update_text_generic("current_section_title_mobj", text_str, SECTION_TITLE_FONT_SIZE, BOLD, WHITE, play_anim)
+
+    def update_phase_text(self, text_str, color=WHITE, play_anim=True):
+        # Updates the phase description text.
+        self._update_text_generic("phase_text_mobj", text_str, PHASE_TEXT_FONT_SIZE, BOLD, color, play_anim)
+
+    def update_status_text(self, text_str, color=WHITE, play_anim=True):
+        # Updates the algorithm status text.
+        self._update_text_generic("algo_status_mobj", text_str, STATUS_TEXT_FONT_SIZE, NORMAL, color, play_anim)
+
+    def _dfs_recursive_find_path_anim(self, u, pushed, current_path_info_list):
+        # Recursive DFS function to find an augmenting path in the level graph.
+        # u: current node
+        # pushed: current bottleneck capacity found so far in the path from source to u
+        # current_path_info_list: list to store information about edges in the found path for animation
+        
+        u_dot_group = self.node_mobjects[u]
+        u_dot = u_dot_group[0]
+
+        # Highlight the current node being visited by DFS
+        highlight_ring = Circle(
+            radius=u_dot.width/2 * 1.3, # Slightly larger than the node
+            color=PINK,
+            stroke_width=RING_STROKE_WIDTH * 0.7
+        ).move_to(u_dot.get_center()).set_z_index(u_dot.z_index + 2) # Ensure ring is above node
+        self.dfs_traversal_highlights.add(highlight_ring)
+        self.play(Create(highlight_ring), run_time=0.25)
+
+        if u == self.sink_node: # Base case: Reached the sink node
+            self.play(FadeOut(highlight_ring), run_time=0.15) # Remove highlight
+            self.dfs_traversal_highlights.remove(highlight_ring)
+            return pushed # Return the bottleneck capacity of the path found
+
+        # Explore neighbors of u
+        while self.ptr[u] < len(self.adj[u]):
+            v_candidate = self.adj[u][self.ptr[u]] # Get next neighbor using pointer
+
+            # Calculate residual capacity of the edge (u, v_candidate)
+            res_cap_cand = self.capacities.get((u, v_candidate), 0) - self.flow.get((u, v_candidate), 0)
+            edge_mo_cand = self.edge_mobjects.get((u,v_candidate)) # Get mobject for the edge
+
+            # Check if this edge is part of the current Level Graph (LG)
+            # 1. Edge mobject exists (i.e., it's an original edge, not just a conceptual reverse edge for logic)
+            # 2. Level of v_candidate is exactly one greater than level of u
+            # 3. Residual capacity is positive
+            is_valid_lg_edge = (edge_mo_cand and \
+                               self.levels.get(v_candidate, -1) == self.levels.get(u, -1) + 1 and \
+                               res_cap_cand > 0)
+
+            if is_valid_lg_edge:
+                actual_v = v_candidate
+                edge_mo_for_v = edge_mo_cand
+                res_cap_for_v = res_cap_cand
+
+                # Store original appearance for restoration
+                original_edge_color = edge_mo_for_v.get_color()
+                original_edge_width = edge_mo_for_v.get_stroke_width()
+                original_edge_opacity = edge_mo_for_v.get_stroke_opacity()
+
+                # Animate trying this edge
+                self.play(edge_mo_for_v.animate.set_color(YELLOW_A).set_stroke(width=DFS_EDGE_TRY_WIDTH, opacity=1.0), run_time=0.3)
+
+                # Recursively call DFS for the neighbor
+                # Pass min(pushed, res_cap_for_v) as the new bottleneck capacity
+                tr = self._dfs_recursive_find_path_anim(actual_v, min(pushed, res_cap_for_v), current_path_info_list)
+
+                if tr > 0: # If a path to sink is found through this edge (tr > 0)
+                    # Add edge info to path list for later animation of augmentation
+                    current_path_info_list.append(((u, actual_v), edge_mo_for_v, original_edge_color, original_edge_width, original_edge_opacity))
+                    self.play(FadeOut(highlight_ring), run_time=0.15) # Remove highlight from u
+                    self.dfs_traversal_highlights.remove(highlight_ring)
+                    return tr # Propagate the bottleneck flow value back up the recursion
+
+                # If DFS from actual_v did not reach the sink (tr == 0)
+                # This edge led to a dead end in this DFS attempt. Restore its appearance.
+                self.play(
+                    edge_mo_for_v.animate.set_color(original_edge_color).set_stroke(width=original_edge_width, opacity=original_edge_opacity),
+                    run_time=0.3
+                )
+                # Indicate that this edge was tried but didn't lead to a path in this attempt
+                self.play(Indicate(edge_mo_for_v, color=RED_D, scale_factor=1.0, run_time=0.35)) 
+
+            self.ptr[u] += 1 # Move pointer to the next neighbor of u for subsequent attempts from u
+
+        # If loop finishes, all neighbors of u (from current ptr[u] onwards) have been tried without finding a path.
+        # Node u is "stuck" in this DFS traversal from its predecessor.
+        # "Retreat to previous node" is handled by returning 0.
+        # The concept of "deleting node from LG" for this path is implicitly handled by ptr:
+        # u won't be successfully used again from this specific incoming path because ptr[u] has advanced.
+        
+        # No specific text for "stuck" here to avoid clutter; visual cues suffice.
+        # Fade out highlight for current node u as we backtrack.
+        self.play(FadeOut(highlight_ring), run_time=0.15)
+        self.dfs_traversal_highlights.remove(highlight_ring)
+        return 0 # Return 0 to indicate no path to sink found from u with remaining edges
+
+    # --- TODO: Animate flow augmentation and residual graph updates --- 
+    # (Addressed in this function by updating flow values, their text labels,
+    # and edge appearances based on saturation. Reverse flow logic for self.flow also added.)
+    # --- TODO: Animate max flow calculation and display --- (Addressed by overall flow updates and text)
+    def animate_dfs_path_finding_phase(self):
+        # This function orchestrates the DFS phase to find a blocking flow in the current level graph.
+        
+        # ptr[v] stores the next edge to explore from node v in its adjacency list during DFS.
+        # This helps avoid re-exploring edges that led to dead ends in the current DFS phase.
+        self.ptr = {v_id: 0 for v_id in self.vertices_data} 
+
+        total_flow_this_phase = 0 # Accumulates flow found in this Dinitz phase
+        path_count_this_phase = 0 # Counts DFS attempts to find paths
+        self.dfs_traversal_highlights = VGroup().set_z_index(RING_Z_INDEX + 1) # For DFS node highlights
+        self.add(self.dfs_traversal_highlights)
+
+        self.update_phase_text(f"Phase {self.current_phase_num}: Finding Augmenting Paths in LG (DFS)", color=ORANGE, play_anim=True)
+        self.wait(0.5)
+
+        while True: # Loop to find multiple augmenting paths (blocking flow) in the current Level Graph (LG)
+            path_count_this_phase += 1
+            self.update_status_text(f"DFS Attempt #{path_count_this_phase}: Searching s->t path from S={self.source_node} in LG", play_anim=True)
+
+            current_path_anim_info = [] # Stores ((u,v), edge_mo, original_style_info...) for edges in the found path
+
+            # Call recursive DFS to find one s-t path.
+            # float('inf') is the initial available capacity for the path.
+            bottleneck_flow = self._dfs_recursive_find_path_anim(
+                self.source_node,
+                float('inf'), 
+                current_path_anim_info 
+            )
+
+            if bottleneck_flow == 0:
+                # No more s-t paths can be found in the current Level Graph.
+                self.update_status_text("No more s-t paths in current Level Graph.", color=YELLOW_C, play_anim=True)
+                self.wait(1.5)
+                break # Exit the while loop for this DFS phase
+
+            # An s-t path was found. Augment flow along this path.
+            total_flow_this_phase += bottleneck_flow
+            self.update_status_text(f"Path s->t found! Bottleneck: {bottleneck_flow:.1f}. Augmenting flow.", color=GREEN_A, play_anim=True)
+
+            # Highlight the found path
+            path_highlight_anims = []
+            current_path_anim_info.reverse() # Path is collected in reverse during DFS backtracking
+            for (u_path,v_path), edge_mo_path, _, _, _ in current_path_anim_info:
+                path_highlight_anims.append(
+                    edge_mo_path.animate.set_color(GREEN_D).set_stroke(width=DFS_PATH_EDGE_WIDTH, opacity=1.0)
+                )
+            if path_highlight_anims:
+                self.play(AnimationGroup(*path_highlight_anims, lag_ratio=0.15, run_time=0.8))
+            self.wait(0.6)
+
+            # Update flow values, text labels, and edge appearances (part of "residual graph updates")
+            augmentation_anims = [] # Animations for edge style changes (e.g., dimming)
+            text_update_anims = []  # Animations for flow text value changes
+
+            for (u,v), edge_mo, orig_color, orig_width, orig_opacity in current_path_anim_info:
+                # Augment flow on the forward edge (u,v)
+                self.flow[(u,v)] = self.flow.get((u,v), 0) + bottleneck_flow
+                # Update flow on the conceptual reverse edge (v,u) for residual graph correctness
+                self.flow[(v,u)] = self.flow.get((v,u), 0) - bottleneck_flow
+
+                # Update the displayed flow value text mobject for edge (u,v)
+                old_flow_text_mobj = self.edge_flow_val_text_mobjects[(u,v)]
+                new_flow_val = self.flow[(u,v)]
+                # Format flow value (integer if whole number, else one decimal place)
+                new_flow_str = f"{new_flow_val:.0f}" if abs(new_flow_val - round(new_flow_val)) < 0.01 else f"{new_flow_val:.1f}"
+                
+                arrow = self.edge_mobjects[(u,v)] # Get arrow mobject for orientation
+                # Create a target text mobject for smooth animation (become)
+                target_text_template = Text(
+                    new_flow_str,
+                    font=old_flow_text_mobj.font,
+                    font_size=EDGE_FLOW_PREFIX_FONT_SIZE, # Use consistent font size
+                    color=LABEL_TEXT_COLOR
+                )
+                # Ensure consistent height if scaled_flow_text_height is set
+                if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height is not None:
+                    target_text_template.set_height(self.scaled_flow_text_height)
+                else: # pragma: no cover
+                    target_text_template.match_height(old_flow_text_mobj) # Fallback
+                
+                target_text_template.move_to(old_flow_text_mobj.get_center()) # Position at old text's center
+                target_text_template.rotate(arrow.get_angle(), about_point=target_text_template.get_center()) # Match edge angle
+                text_update_anims.append(old_flow_text_mobj.animate.become(target_text_template))
+
+                # Check if the edge (u,v) is still part of the Level Graph after augmentation
+                res_cap_after = self.capacities[(u,v)] - self.flow.get((u,v),0)
+                is_still_lg_edge = (self.levels.get(u,-1)!=-1 and self.levels.get(v,-1)!=-1 and \
+                                    self.levels[v]==self.levels[u]+1 and res_cap_after > 0)
+
+                if not is_still_lg_edge: 
+                    # Edge is saturated or no longer a valid forward edge in the LG. Dim it.
+                    augmentation_anims.append(edge_mo.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR, width=EDGE_STROKE_WIDTH))
+                else: 
+                    # Edge is still usable in LG. Revert its appearance to the LG style.
+                    # (It was green from path highlighting, now back to its level color)
+                    augmentation_anims.append(edge_mo.animate.set_color(LEVEL_COLORS[self.levels[u]%len(LEVEL_COLORS)]).set_stroke(width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH, opacity=orig_opacity))
+
+            all_augmentation_related_anims = text_update_anims + augmentation_anims
+            if all_augmentation_related_anims:
+                 self.play(AnimationGroup(*all_augmentation_related_anims, lag_ratio=0.1), run_time=1.2)
+            else: # pragma: no cover (Should always have animations if path found)
+                 self.wait(1.0)
+
+            # "Restart from s": The loop continues to find the next path in the *same* Level Graph.
+            self.update_status_text(f"Augmented. Flow this phase: {total_flow_this_phase:.1f}. Searching for next s-t path...", color=WHITE, play_anim=True)
+            self.wait(1.0)
+
+        # Cleanup any remaining DFS highlights (e.g., if loop broke early or source was stuck initially)
+        if self.dfs_traversal_highlights.submobjects:
+            self.play(FadeOut(self.dfs_traversal_highlights), run_time=0.2)
+            self.remove(self.dfs_traversal_highlights) # Ensure removal from scene
+        return total_flow_this_phase # Return total flow pushed in this Dinitz phase
+
     def construct(self):
-        # --- Title ---
-        title_main = Text("Dinitz's Algorithm: Phase 1 - Blocking Flow", font_size=36).to_edge(UP)
-        self.play(Write(title_main))
-        self.wait(0.5)
+        # Main method to construct the animation scene.
+        self.setup_titles_and_placeholders()
+        
+        self.scaled_flow_text_height = None # Will be set after scaling graph, for consistent text size
 
-        # --- Define Graph ---
-        vertices = list(range(1, 11))
-        edges_input_tuples = [
-          (1, 2), (1, 3), (1, 4), (3, 4), (2, 5), (3, 5), (4, 6),
-          (5, 7), (5, 8), (6, 8), (6, 9), (7, 10), (8, 10), (9, 10)
+        # --- Graph Data Definition ---
+        self.source_node, self.sink_node = 1, 10
+        self.vertices_data = list(range(1, 11)) # Nodes 1 to 10
+        self.edges_with_capacity_list = [ # (u, v, capacity)
+            (1,2,25),(1,3,30),(1,4,20),(2,5,25),(3,4,30),(3,5,35),(4,6,30),
+            (5,7,40),(5,8,40),(6,8,35),(6,9,30),(7,10,20),(8,10,20),(9,10,20)
         ]
-        self.capacities_dict = {
-            (1, 2): 25, (1, 3): 30, (1, 4): 20, (3, 4): 30, (2, 5): 25, (3, 5): 35, (4, 6): 30,
-            (5, 7): 40, (5, 8): 40, (6, 8): 35, (6, 9): 30, (7, 10): 20, (8, 10): 20, (9, 10): 20
+        
+        # --- Graph Data Structures ---
+        self.capacities = collections.defaultdict(int) # Stores original capacities
+        self.flow = collections.defaultdict(int)       # Stores current flow on edges
+        self.adj = collections.defaultdict(list)       # Adjacency list for graph traversal
+
+        # Populate capacities and adjacency list.
+        # Also add reverse edges to adj for BFS/DFS on the residual graph.
+        # Their capacities are implicitly 0 via defaultdict if not in original list.
+        for u,v,cap in self.edges_with_capacity_list:
+            self.capacities[(u,v)] = cap
+            if v not in self.adj[u]: # Add forward edge to adjacency list
+                self.adj[u].append(v)
+            # Add reverse edge to adjacency list for residual graph logic
+            if u not in self.adj[v]: 
+                self.adj[v].append(u)
+
+        # Predefined layout for nodes to ensure a clear visualization
+        self.graph_layout = {
+            1: [-3,0,0], 2:[-2,1,0], 3:[-2,0,0], 4:[-2,-1,0], 5:[-0.5,0.75,0], 6:[-0.5,-0.75,0],
+            7: [1,1,0], 8:[1,0,0], 9:[1,-1,0], 10:[2.5,0,0]
         }
-        source_node, sink_node = 1, 10
-        graph_layout = {1: [-6,0,0], 2: [-4,2,0], 3: [-4,0,0], 4: [-4,-2,0], 5: [-1.5,1,0], 6: [-1.5,-1,0], 7: [1.5,2,0], 8: [1.5,0,0], 9: [1.5,-2,0], 10: [4,0,0]}
+
+        # Dictionaries to store Manim mobjects for graph elements
+        self.node_mobjects = {}; self.edge_mobjects = {};
+        self.edge_capacity_text_mobjects = {}; self.edge_flow_val_text_mobjects = {};
+        self.edge_slash_text_mobjects = {} # For the "/" in "flow/capacity"
+        self.edge_label_groups = {} # VGroup for "flow / capacity" text per edge
+
+        self.desired_large_scale = 1.6 # Scaling factor for the graph display
+
+        self.update_section_title("1. Building the Network", play_anim=False) # Initial section title
+
+        # --- Create Node Mobjects ---
+        nodes_vgroup = VGroup() # Group for all node mobjects
+        for v_id in self.vertices_data:
+            dot = Dot(point=self.graph_layout[v_id], radius=NODE_RADIUS, color=DEFAULT_NODE_COLOR, z_index=2, stroke_color=BLACK, stroke_width=NODE_STROKE_WIDTH)
+            label = Text(str(v_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD).move_to(dot.get_center()).set_z_index(3)
+            self.node_mobjects[v_id] = VGroup(dot,label); nodes_vgroup.add(self.node_mobjects[v_id])
+        self.play(LaggedStart(*[GrowFromCenter(self.node_mobjects[vid]) for vid in self.vertices_data], lag_ratio=0.05), run_time=1.5)
+
+        # --- Create Edge Mobjects ---
+        edges_vgroup = VGroup() # Group for all edge mobjects
+        edge_grow_anims = []
+        for u,v,cap in self.edges_with_capacity_list: # Only create mobjects for original edges
+            n_u_dot = self.node_mobjects[u][0]; n_v_dot = self.node_mobjects[v][0]
+            arrow = Arrow(n_u_dot.get_center(), n_v_dot.get_center(), buff=NODE_RADIUS, 
+                          stroke_width=EDGE_STROKE_WIDTH, color=DEFAULT_EDGE_COLOR, 
+                          max_tip_length_to_length_ratio=0.2, tip_length=ARROW_TIP_LENGTH, z_index=0)
+            self.edge_mobjects[(u,v)] = arrow; edges_vgroup.add(arrow)
+            edge_grow_anims.append(GrowArrow(arrow))
+        self.play(LaggedStart(*edge_grow_anims, lag_ratio=0.05), run_time=1.5)
+
+        # --- Create Edge Label Mobjects (Flow/Capacity) ---
+        all_edge_labels_vgroup = VGroup()
+        capacities_to_animate_write = []
+        flow_slashes_to_animate_write = []
+
+        for u, v, cap in self.edges_with_capacity_list: # Labels only for original edges
+            arrow = self.edge_mobjects[(u,v)]
+            # Initial flow is 0
+            flow_val_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            slash_mobj = Text("/", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            cap_text_mobj = Text(str(cap), font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
+
+            self.edge_flow_val_text_mobjects[(u,v)] = flow_val_mobj
+            self.edge_slash_text_mobjects[(u,v)] = slash_mobj
+            self.edge_capacity_text_mobjects[(u,v)] = cap_text_mobj
+
+            label_group = VGroup(flow_val_mobj, slash_mobj, cap_text_mobj)
+            label_group.arrange(RIGHT, buff=BUFF_VERY_SMALL) # Arrange "0 / cap"
+            label_group.move_to(arrow.get_center()) # Position near edge center
+            label_group.rotate(arrow.get_angle())   # Align with edge
+            # Offset label slightly from the edge for clarity
+            offset_distance = 0.25 
+            offset_vector = rotate_vector(arrow.get_unit_vector(), PI/2) * offset_distance
+            label_group.shift(offset_vector)
+            label_group.set_z_index(1) # Above edges, below nodes
+            self.edge_label_groups[(u,v)] = label_group
+            all_edge_labels_vgroup.add(label_group)
+            
+            # For animation
+            capacities_to_animate_write.append(cap_text_mobj)
+            flow_slashes_to_animate_write.append(VGroup(flow_val_mobj, slash_mobj))
+
+        if capacities_to_animate_write: self.play(LaggedStart(*[Write(c) for c in capacities_to_animate_write], lag_ratio=0.05), run_time=1.2)
+        if flow_slashes_to_animate_write: self.play(LaggedStart(*[Write(fs_group) for fs_group in flow_slashes_to_animate_write], lag_ratio=0.05), run_time=1.2)
+
+        # Group all network elements for scaling and positioning
+        self.network_display_group = VGroup(nodes_vgroup, edges_vgroup, all_edge_labels_vgroup)
         
-        self.g = Graph(vertices, edges_input_tuples, layout=graph_layout, labels=True,
-                  vertex_config={"radius": 0.35, "color": BLUE_D, "fill_opacity": 0.9, "stroke_color": WHITE, "stroke_width":2},
-                  edge_config={"stroke_width": 3, "color": GREY_B})
+        # Scale and position the entire network
+        temp_scaled_network_for_height = self.network_display_group.copy().scale(self.desired_large_scale)
+        # Calculate target Y position to center it nicely below titles
+        network_target_y = (-config.frame_height / 2) + (temp_scaled_network_for_height.height / 2) + BUFF_XLARGE
+        target_position = np.array([0, network_target_y, 0])
+        self.play(self.network_display_group.animate.scale(self.desired_large_scale).move_to(target_position))
         
-        self.flow_on_edges = {edge: 0 for edge in edges_input_tuples} # u,v -> flow
-        self.edge_label_mobjects = {} # (u,v) -> TextMobject
-        initial_edge_labels_vg = VGroup()
-        for u, v in edges_input_tuples:
-            cap = self.capacities_dict.get((u,v))
-            if cap is not None:
-                edge_mo = self.g.edges.get((u,v))
+        # Store scaled height of flow text for consistent updates later
+        if self.edge_flow_val_text_mobjects:
+            first_edge_key = next(iter(self.edge_flow_val_text_mobjects))
+            sample_flow_mobj = self.edge_flow_val_text_mobjects[first_edge_key]
+            self.scaled_flow_text_height = sample_flow_mobj.height 
+        else: # pragma: no cover
+            # Fallback if no edges (should not happen with example data)
+            dummy_text = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE)
+            self.scaled_flow_text_height = dummy_text.height * self.desired_large_scale
+
+        # Store base visual attributes of nodes and edges after scaling, for restoration or reference
+        self.base_node_visual_attrs = {} 
+        for v_id, node_group in self.node_mobjects.items():
+            dot = node_group[0]
+            self.base_node_visual_attrs[v_id] = {
+                "width": dot.get_width(), "fill_color": dot.get_fill_color(),
+                "stroke_color": dot.get_stroke_color(), "stroke_width": dot.get_stroke_width(),
+                "opacity": dot.get_fill_opacity()
+            }
+        self.base_edge_visual_attrs = {}
+        for edge_key, edge_mo in self.edge_mobjects.items():
+            self.base_edge_visual_attrs[edge_key] = {
+                "color": edge_mo.get_color(), "stroke_width": edge_mo.get_stroke_width(),
+                "opacity": edge_mo.get_stroke_opacity()
+            }
+
+        # Highlight Source (S) and Sink (T) nodes
+        s_dot = self.node_mobjects[self.source_node][0]; t_dot = self.node_mobjects[self.sink_node][0]
+        source_ring = Circle(radius=s_dot.width/2 + RING_RADIUS_OFFSET, color=RING_COLOR, stroke_width=RING_STROKE_WIDTH).move_to(s_dot.get_center()).set_z_index(RING_Z_INDEX)
+        sink_ring = Circle(radius=t_dot.width/2 + RING_RADIUS_OFFSET, color=RING_COLOR, stroke_width=RING_STROKE_WIDTH).move_to(t_dot.get_center()).set_z_index(RING_Z_INDEX)
+        self.source_ring_mobj = source_ring; self.sink_ring_mobj = sink_ring
+        self.play(Create(self.source_ring_mobj), Create(self.sink_ring_mobj), run_time=0.75)
+        self.wait(1.0)
+        self.update_status_text("", play_anim=False); self.wait(0.5) # Clear status before starting algorithm
+
+        # --- Dinitz Algorithm Execution Begins ---
+        self.update_section_title("2. Dinitz Algorithm Execution")
+        self.current_phase_num = 0 # Start with phase 0, will increment before first BFS
+        self.max_flow_value = 0
+        
+        # Main loop of Dinitz: Repeats as long as BFS finds an s-t path in residual graph
+        while True:
+            self.current_phase_num += 1
+            # --- BFS Phase: Construct Level Graph (LG) ---
+            self.update_phase_text(f"Phase {self.current_phase_num}: Construct Level Graph (LG) using BFS", color=BLUE_B)
+            self.update_status_text(f"Starting BFS from S={self.source_node} to find levels to T={self.sink_node}")
+            self.wait(0.5)
+
+            # Reset levels for all nodes (-1 means unvisited/unreachable)
+            self.levels = {v_id: -1 for v_id in self.vertices_data} 
+            q_bfs = collections.deque() # Queue for BFS
+
+            # Start BFS from source node
+            current_bfs_level_num = 0
+            self.levels[self.source_node] = current_bfs_level_num
+            q_bfs.append(self.source_node)
+
+            # Animate source node for BFS start
+            s_dot_obj = self.node_mobjects[self.source_node][0]; s_lbl_obj = self.node_mobjects[self.source_node][1]
+            s_base_width = self.base_node_visual_attrs[self.source_node]["width"]
+            self.play(
+                s_dot_obj.animate.set_fill(LEVEL_COLORS[0]).set_width(s_base_width * 1.1), # Highlight source
+                s_lbl_obj.animate.set_color(BLACK if sum(color_to_rgb(LEVEL_COLORS[0])) > 1.5 else WHITE), # Adjust label color for contrast
+                run_time=0.5
+            )
+            
+            # Display level information on screen
+            # Clear previous level display if any
+            if self.level_display_vgroup.submobjects:
+                self.play(FadeOut(self.level_display_vgroup))
+                self.remove(self.level_display_vgroup) # Ensure it's fully removed before re-adding
+                self.level_display_vgroup = VGroup().set_z_index(5).to_corner(UR, buff=BUFF_LARGE)
+                self.add(self.level_display_vgroup)
+
+
+            l_p0 = Text(f"L{current_bfs_level_num}:", font_size=LEVEL_TEXT_FONT_SIZE, color=LEVEL_COLORS[0])
+            l_n0 = Text(f" {{{self.source_node}}}", font_size=LEVEL_TEXT_FONT_SIZE, color=WHITE)
+            l0_vg = VGroup(l_p0,l_n0).arrange(RIGHT,buff=BUFF_VERY_SMALL)
+            self.level_display_vgroup.add(l0_vg)
+            # Ensure consistent arrangement and positioning
+            self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL).to_corner(UR, buff=BUFF_LARGE)
+            self.play(Write(l0_vg))
+            max_level_text_width = config.frame_width * 0.30 # Max width for level display to avoid overflow
+
+            bfs_path_found_to_sink_this_phase = False
+            
+            # Restore all original graph edges to default appearance before highlighting LG edges for this phase
+            # Also reset node appearances from previous LG.
+            restore_anims = []
+            for v_id, node_group_attrs in self.base_node_visual_attrs.items():
+                node_dot = self.node_mobjects[v_id][0]
+                node_lbl = self.node_mobjects[v_id][1]
+                restore_anims.append(node_dot.animate.set_width(node_group_attrs["width"])
+                                                        .set_fill(node_group_attrs["fill_color"], opacity=node_group_attrs["opacity"])
+                                                        .set_stroke(color=node_group_attrs["stroke_color"], width=node_group_attrs["stroke_width"]))
+                restore_anims.append(node_lbl.animate.set_color(LABEL_TEXT_COLOR)) # Assuming default label color
+            
+            for edge_key, edge_attrs in self.base_edge_visual_attrs.items():
+                edge_mo = self.edge_mobjects.get(edge_key)
                 if edge_mo:
-                    mid_point = edge_mo.get_center()
-                    direction_vector = edge_mo.get_unit_vector()
-                    offset_dir = np.array([-direction_vector[1], direction_vector[0], 0]) * 0.3
-                    label_text_obj = Text(f"0/{cap}", font_size=18, color=BLACK).move_to(mid_point + offset_dir)
-                    initial_edge_labels_vg.add(label_text_obj)
-                    self.edge_label_mobjects[(u,v)] = label_text_obj
-        
-        self.graph_group = VGroup(self.g, initial_edge_labels_vg).scale(0.85).move_to(ORIGIN+DOWN*0.3)
-        self.play(Create(self.g), Write(initial_edge_labels_vg))
-        self.wait(0.5)
-
-        # --- BFS State (Applied Directly) ---
-        bfs_status_text = Text("Phase 1 Level Graph Established", font_size=24, weight=BOLD).next_to(title_main, DOWN, buff=0.2)
-        self.play(Write(bfs_status_text))
-
-        self.levels = {1:0, 2:1, 3:1, 4:1, 5:2, 6:2, 7:3, 8:3, 9:3, 10:4}
-        level_colors = [RED_E, ORANGE, YELLOW_D, GREEN_C, BLUE_C, PURPLE_C]
-        bfs_node_animations = []
-        for node, level in self.levels.items():
-            if level != -1: 
-                bfs_node_animations.append(self.g.vertices[node].animate.set_fill(level_colors[level % len(level_colors)], opacity=1))
-        
-        level_texts_display_data = {0:[1], 1:[2,3,4], 2:[5,6], 3:[7,8,9], 4:[10]}
-        current_level_texts_vg = VGroup() # Start with an empty VGroup for current texts
-        for i in range(len(level_texts_display_data)):
-            nodes_str = ", ".join(map(str, sorted(level_texts_display_data.get(i,[]))))
-            lt = Text(f"L{i}: {{{nodes_str}}}", font_size=20)
-            if i > 0 and current_level_texts_vg: lt.next_to(current_level_texts_vg[-1], DOWN, aligned_edge=LEFT)
-            current_level_texts_vg.add(lt)
-        current_level_texts_vg.to_corner(UL).shift(RIGHT*0.5 + DOWN*0.5)
-        
-        self.play(*bfs_node_animations, Write(current_level_texts_vg), run_time=1)
-        self.level_texts_vg = current_level_texts_vg # Keep reference if needed later
-        
-        level_graph_edges_anims = []
-        non_level_graph_edges_anims = []
-        for u, v in edges_input_tuples:
-            is_level_graph_edge = (self.levels.get(u, -1) != -1 and self.levels.get(v, -1) != -1 and \
-                                   self.levels[v] == self.levels[u] + 1 and \
-                                   self.capacities_dict.get((u,v),0) > 0)
-            edge_mobject = self.g.edges.get((u,v))
-            if edge_mobject:
-                if is_level_graph_edge:
-                    level_graph_edges_anims.append(
-                        edge_mobject.animate.set_color(level_colors[self.levels[u]%len(level_colors)]).set_stroke(opacity=1.0, width=4.5)
-                    )
-                else:
-                    non_level_graph_edges_anims.append(
-                        edge_mobject.animate.set_color(GREY_D).set_stroke(opacity=0.25, width=2)
-                    )
-        if non_level_graph_edges_anims: self.play(*non_level_graph_edges_anims, run_time=0.7)
-        if level_graph_edges_anims: self.play(*level_graph_edges_anims, run_time=0.7)
-        self.play(FadeOut(bfs_status_text))
-        self.wait(0.5)
-
-        # --- First Path Augmentation (State Applied Directly) ---
-        path1_details = {"nodes": [1,2,5,7,10], "edges": [(1,2),(2,5),(5,7),(7,10)], "bottleneck": 20}
-        
-        for u_p1,v_p1 in path1_details["edges"]:
-            self.flow_on_edges[(u_p1,v_p1)] += path1_details["bottleneck"]
-            new_flow_p1 = self.flow_on_edges[(u_p1,v_p1)]
-            cap_p1 = self.capacities_dict[(u_p1,v_p1)]
-            old_label_mobject_p1 = self.edge_label_mobjects[(u_p1,v_p1)]
-            new_label_mobject_p1 = Text(f"{new_flow_p1}/{cap_p1}", font_size=18, color=BLACK).move_to(old_label_mobject_p1.get_center())
-            self.remove(old_label_mobject_p1).add(new_label_mobject_p1) 
-            self.edge_label_mobjects[(u_p1,v_p1)] = new_label_mobject_p1
-            if new_flow_p1 == cap_p1: self.g.edges[(u_p1,v_p1)].set_color(RED_D) 
-            # Edges not saturated by path 1 retain their level graph color.
-            # The next step will reset them explicitly if needed.
-
-        path1_augmented_text = Text("Path 1 (1-2-5-7-10) augmented. Flow: 20.", font_size=20).next_to(title_main, DOWN, buff=0.2)
-        self.play(Write(path1_augmented_text))
-        self.wait(1)
-        
-        # --- Start Animation for Finding Second Augmenting Path ---
-        status_text = Text("DFS: Searching for Path 2 in Level Graph...", font_size=24).move_to(path1_augmented_text)
-        self.play(ReplacementTransform(path1_augmented_text, status_text))
-        self.wait(1)
-
-        reset_anims_p1_edges = []
-        path1_non_saturated_edges_after_flow = [(1,2), (2,5), (5,7)] # (7,10) is saturated
-        for u,v in path1_non_saturated_edges_after_flow:
-            if self.flow_on_edges.get((u,v),0) < self.capacities_dict.get((u,v),0) : # Double check not saturated
-                 reset_anims_p1_edges.append(self.g.edges[(u,v)].animate.set_color(level_colors[self.levels[u]%len(level_colors)]).set_stroke(width=4.5))
-        if reset_anims_p1_edges: self.play(*reset_anims_p1_edges, run_time=0.5)
-        
-        DFS_EXPLORE_COLOR = PINK
-        CURRENT_DFS_PATH_COLOR = GOLD 
-        self.play(self.g.vertices[source_node].animate.set_fill(CURRENT_DFS_PATH_COLOR).set_stroke(color=RED_D, width=3))
-        self.wait(0.5)
-
-        # --- Animate DFS for Path 2: 1 -> 2 -> 5 -> (try 7, backtrack) -> 8 -> 10 ---
-        # Step 1: 1 -> 2 
-        self.play(
-            self.g.edges[(1,2)].animate.set_color(DFS_EXPLORE_COLOR).set_stroke(width=5.5),
-            self.g.vertices[2].animate.set_fill(DFS_EXPLORE_COLOR),
-            run_time=0.7
-        )
-        self.wait(0.3)
-
-        # Step 2: 2 -> 5
-        self.play(
-            self.g.vertices[1].animate.set_fill(CURRENT_DFS_PATH_COLOR), 
-            self.g.edges[(1,2)].animate.set_color(CURRENT_DFS_PATH_COLOR).set_stroke(width=6), 
-            self.g.vertices[2].animate.set_fill(CURRENT_DFS_PATH_COLOR), 
-            self.g.edges[(2,5)].animate.set_color(DFS_EXPLORE_COLOR).set_stroke(width=5.5), 
-            self.g.vertices[5].animate.set_fill(DFS_EXPLORE_COLOR),
-            run_time=0.7
-        )
-        self.wait(0.3)
-        
-        # Step 3: From 5, try 5 -> 7
-        self.play(
-            self.g.edges[(2,5)].animate.set_color(CURRENT_DFS_PATH_COLOR).set_stroke(width=6), 
-            self.g.vertices[5].animate.set_fill(CURRENT_DFS_PATH_COLOR), 
-            self.g.edges[(5,7)].animate.set_color(DFS_EXPLORE_COLOR).set_stroke(width=5.5), 
-            self.g.vertices[7].animate.set_fill(DFS_EXPLORE_COLOR),
-            run_time=0.7
-        )
-        self.wait(0.3)
-
-        # Step 4: From 7, try 7 -> 10 (SATURATED!)
-        # Edge (7,10) should already be RED_D from Path 1 saturation
-        blocked_edge_flash = ShowPassingFlash(self.g.edges[(7,10)].copy().set_color(RED_B), time_width=0.5, run_time=0.7)
-        blocked_text = Text("Edge (7,10) Saturated! Path Blocked.", font_size=20, color=RED_A).next_to(self.g.edges[(7,10)], UR, buff=0.1)
-        self.play(blocked_edge_flash, Write(blocked_text), run_time=0.7)
-        self.wait(0.5)
-
-        # Step 5: Backtrack from 7 to 5
-        backtrack_text = Text("Backtrack: 7 -> 5", font_size=20).next_to(blocked_text, DOWN, buff=0.2, aligned_edge=LEFT)
-        self.play(Write(backtrack_text), run_time=0.5)
-        self.play(
-            self.g.edges[(5,7)].animate.set_color(level_colors[self.levels[5]%len(level_colors)]).set_stroke(width=4.5),
-            self.g.vertices[7].animate.set_fill(level_colors[self.levels[7]%len(level_colors)]),
-            FadeOut(blocked_text),
-            run_time=0.7
-        )
-        self.wait(0.3)
-
-        # Step 6: From 5, try 5 -> 8
-        self.play(FadeOut(backtrack_text), run_time=0.2) 
-        self.play(
-            self.g.edges[(5,8)].animate.set_color(DFS_EXPLORE_COLOR).set_stroke(width=5.5), 
-            self.g.vertices[8].animate.set_fill(DFS_EXPLORE_COLOR),
-            run_time=0.7
-        )
-        self.wait(0.3)
-
-        # Step 7: From 8, try 8 -> 10 - Sink Reached!
-        self.play(
-            self.g.vertices[5].animate.set_fill(CURRENT_DFS_PATH_COLOR), 
-            self.g.edges[(5,8)].animate.set_color(CURRENT_DFS_PATH_COLOR).set_stroke(width=6), 
-            self.g.vertices[8].animate.set_fill(CURRENT_DFS_PATH_COLOR), 
-            self.g.edges[(8,10)].animate.set_color(DFS_EXPLORE_COLOR).set_stroke(width=5.5),
-            self.g.vertices[10].animate.set_fill(CURRENT_DFS_PATH_COLOR), 
-             run_time=0.7
-        )
-        self.wait(0.3)
-        self.play(self.g.edges[(8,10)].animate.set_color(CURRENT_DFS_PATH_COLOR).set_stroke(width=6)) # Finalize last edge
-
-
-        # --- Path 2 Found ---
-        path2_found_text = Text("Augmenting Path 2 Found!", font_size=22, color=CURRENT_DFS_PATH_COLOR)
-        path2_found_text.next_to(status_text, DOWN, buff=0.3)
-        self.play(ReplacementTransform(status_text, path2_found_text))
-        
-        path2_bottleneck_val = 5
-        path2_bottleneck_text = Text(f"Bottleneck: {path2_bottleneck_val}", font_size=22)
-        path2_bottleneck_text.next_to(path2_found_text, DOWN, buff=0.2)
-        self.play(Write(path2_bottleneck_text))
-        self.wait(1)
-
-        # --- Animate Flow Augmentation for Path 2 ---
-        flow_aug2_status_text = Text(f"Pushing {path2_bottleneck_val} units along Path 2", font_size=24).next_to(title_main, DOWN, buff=0.2)
-        self.play(Write(flow_aug2_status_text))
-
-        path2_edges_tuples = [(1,2), (2,5), (5,8), (8,10)]
-        passing_flash_anims_p2 = []
-        for u,v in path2_edges_tuples:
-            passing_flash_anims_p2.append(Succession(
-                self.g.edges[(u,v)].animate.set_stroke(color=GREEN_C, width=8), # Changed GREEN_SCREEN
-                self.g.edges[(u,v)].animate.set_stroke(color=CURRENT_DFS_PATH_COLOR, width=6),
-                run_time=0.4
-            ))
-        self.play(LaggedStart(*passing_flash_anims_p2, lag_ratio=0.3), run_time=len(passing_flash_anims_p2)*0.3)
-        self.wait(0.5)
-
-        label_update_anims_p2 = []
-        saturation_anims_p2 = []
-        newly_saturated_edges_p2_text = []
-
-        for u,v in path2_edges_tuples:
-            self.flow_on_edges[(u,v)] += path2_bottleneck_val 
-            new_flow = self.flow_on_edges[(u,v)]
-            cap = self.capacities_dict[(u,v)]
+                    restore_anims.append(edge_mo.animate.set_color(edge_attrs["color"])
+                                                       .set_stroke(width=edge_attrs["stroke_width"], opacity=edge_attrs["opacity"]))
+            if restore_anims:
+                self.play(AnimationGroup(*restore_anims, lag_ratio=0.01, run_time=0.75))
             
-            old_label_mobject = self.edge_label_mobjects[(u,v)]
-            # Important: Create new Text mobject for ReplacementTransform
-            new_label_mobject = Text(f"{new_flow}/{cap}", font_size=18, color=BLACK).move_to(old_label_mobject.get_center())
-            
-            label_update_anims_p2.append(ReplacementTransform(old_label_mobject, new_label_mobject))
-            self.edge_label_mobjects[(u,v)] = new_label_mobject 
+            # Re-highlight S and T rings if they were affected
+            self.play(
+                self.source_ring_mobj.animate.set_opacity(1), self.sink_ring_mobj.animate.set_opacity(1),
+                self.node_mobjects[self.source_node][0].animate.set_fill(LEVEL_COLORS[0]).set_width(self.base_node_visual_attrs[self.source_node]["width"] * 1.1), # Re-color source for current BFS
+                self.node_mobjects[self.source_node][1].animate.set_color(BLACK if sum(color_to_rgb(LEVEL_COLORS[0])) > 1.5 else WHITE)
+            )
 
-            if new_flow == cap: 
-                saturation_anims_p2.append(self.g.edges[(u,v)].animate.set_color(RED_D).set_stroke(width=7))
-                newly_saturated_edges_p2_text.append(f"({u},{v})")
-        
-        if label_update_anims_p2: self.play(*label_update_anims_p2, run_time=1.5)
-        if saturation_anims_p2:
-            self.play(*saturation_anims_p2, run_time=1.0)
-            if newly_saturated_edges_p2_text:
-                saturated_info_text_p2 = Text(f"Edges {', '.join(newly_saturated_edges_p2_text)} now saturated.", font_size=20, color=RED_D)
-                saturated_info_text_p2.next_to(flow_aug2_status_text, DOWN, buff=0.4) # Increased buff
-                self.play(Write(saturated_info_text_p2))
+
+            # BFS main loop
+            while q_bfs:
+                nodes_to_process_this_level = list(q_bfs); q_bfs.clear() # Process one level at a time
+                if not nodes_to_process_this_level: break # Should not happen if q_bfs was not empty
+
+                # Determine target level for neighbors
+                # All nodes in nodes_to_process_this_level are at the same level.
+                # Their valid neighbors will be at levels[nodes_to_process_this_level[0]] + 1.
+                target_level = self.levels[nodes_to_process_this_level[0]] + 1
+                
+                nodes_found_next_lvl_set = set() # Nodes found at target_level
+                node_color_anims_bfs = []       # Animations for node coloring
+                edge_highlight_anims_bfs_step = [] # Animations for edge highlighting
+
+                for u_bfs in nodes_to_process_this_level:
+                    node_to_indicate = self.node_mobjects[u_bfs]
+                    # Briefly indicate the node u_bfs from which we are exploring
+                    ind_u = SurroundingRectangle(node_to_indicate, color=YELLOW_C, buff=0.03, stroke_width=2.0, corner_radius=0.05)
+                    self.play(Create(ind_u), run_time=0.15)
+
+                    # Explore neighbors v_n_bfs of u_bfs
+                    for v_n_bfs in self.adj[u_bfs]: 
+                        # Calculate residual capacity of edge (u_bfs, v_n_bfs)
+                        res_cap_bfs = self.capacities.get((u_bfs,v_n_bfs),0) - self.flow.get((u_bfs,v_n_bfs),0)
+                        
+                        # If neighbor is unvisited (level == -1) and edge has positive residual capacity:
+                        if res_cap_bfs > 0 and self.levels[v_n_bfs] == -1: 
+                            self.levels[v_n_bfs] = target_level # Assign level
+                            nodes_found_next_lvl_set.add(v_n_bfs)
+                            q_bfs.append(v_n_bfs) # Add to queue for next level processing
+                            
+                            # Animate node coloring for v_n_bfs
+                            lvl_color = LEVEL_COLORS[target_level % len(LEVEL_COLORS)]
+                            n_v_dot = self.node_mobjects[v_n_bfs][0]; n_v_lbl = self.node_mobjects[v_n_bfs][1]
+                            v_base_width = self.base_node_visual_attrs[v_n_bfs]["width"]
+                            node_color_anims_bfs.append(n_v_dot.animate.set_fill(lvl_color).set_width(v_base_width * 1.1))
+                            rgb_c = color_to_rgb(lvl_color); lbl_c = BLACK if sum(rgb_c)>1.5 else WHITE # Label contrast
+                            node_color_anims_bfs.append(n_v_lbl.animate.set_color(lbl_c))
+                            
+                            # Animate edge highlighting if it's an original edge with a mobject
+                            edge_mo_bfs = self.edge_mobjects.get((u_bfs, v_n_bfs))
+                            if edge_mo_bfs:
+                                 edge_color_bfs = LEVEL_COLORS[self.levels[u_bfs]%len(LEVEL_COLORS)] # Color based on source node's level
+                                 edge_highlight_anims_bfs_step.append(edge_mo_bfs.animate.set_color(edge_color_bfs).set_stroke(width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH))
+                            
+                            if v_n_bfs == self.sink_node: bfs_path_found_to_sink_this_phase = True
+                    
+                    self.play(FadeOut(ind_u), run_time=0.15) # Remove indication from u_bfs
+                
+                # Play animations for nodes and edges discovered at this step of BFS
+                if node_color_anims_bfs or edge_highlight_anims_bfs_step: 
+                    self.play(AnimationGroup(*(node_color_anims_bfs + edge_highlight_anims_bfs_step), lag_ratio=0.1), run_time=0.6)
+                
+                # Update the on-screen level display
+                if nodes_found_next_lvl_set:
+                    n_str = ", ".join(map(str, sorted(list(nodes_found_next_lvl_set))))
+                    l_px = Text(f"L{target_level}:", font_size=LEVEL_TEXT_FONT_SIZE, color=LEVEL_COLORS[target_level%len(LEVEL_COLORS)])
+                    l_nx = Text(f" {{{n_str}}}", font_size=LEVEL_TEXT_FONT_SIZE, color=WHITE)
+                    l_vg = VGroup(l_px,l_nx).arrange(RIGHT,buff=BUFF_VERY_SMALL)
+                    self.level_display_vgroup.add(l_vg)
+                    self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL).to_corner(UR, buff=BUFF_LARGE)
+                    # Scale if too wide
+                    if self.level_display_vgroup.width > max_level_text_width: 
+                        self.level_display_vgroup.scale_to_fit_width(max_level_text_width).to_corner(UR, buff=BUFF_LARGE)
+                    self.play(Write(l_vg)); self.wait(0.3)
+                
+                if not q_bfs : break # BFS queue is empty, current BFS exploration ends
+
+            # --- After BFS for current phase ---
+            if self.levels[self.sink_node] == -1: # Sink not reached by BFS
+                self.update_status_text(f"Sink T={self.sink_node} NOT Reached by BFS. Algorithm Terminates. Final Max Flow: {self.max_flow_value:.1f}", color=RED_C)
+                self.wait(3)
+                break # Exit main Dinitz while loop
+            else: # Sink reached, Level Graph construction continues for visualization
+                self.update_status_text(f"Sink T={self.sink_node} Reached at Level L{self.levels[self.sink_node]}. Level Graph (LG) Built.", color=GREEN_A)
+                self.wait(0.5)
+                self.update_status_text("Isolating LG: Highlighting valid forward edges, dimming others.", play_anim=True)
+                
+                lg_edge_anims_iso = []; non_lg_edge_anims_iso = []
+                # Iterate over original edges to update their appearance based on LG
+                for (u_lg,v_lg), edge_mo_lg in self.edge_mobjects.items():
+                    res_cap_lg = self.capacities[(u_lg,v_lg)]-self.flow.get((u_lg,v_lg),0)
+                    # Check if this original edge (u_lg, v_lg) is part of the current LG
+                    is_lg_edge = (self.levels.get(u_lg,-1)!=-1 and self.levels.get(v_lg,-1)!=-1 and \
+                                    self.levels[v_lg]==self.levels[u_lg]+1 and \
+                                    res_cap_lg > 0 )
+                    if is_lg_edge:
+                        edge_c = LEVEL_COLORS[self.levels[u_lg]%len(LEVEL_COLORS)] # Color by source node's level
+                        lg_edge_anims_iso.append(edge_mo_lg.animate.set_stroke(opacity=1.0, width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH).set_color(edge_c))
+                    else:
+                        # Dim edges not part of the LG
+                        non_lg_edge_anims_iso.append(edge_mo_lg.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR))
+                
+                if non_lg_edge_anims_iso + lg_edge_anims_iso: 
+                    self.play(AnimationGroup(*(non_lg_edge_anims_iso + lg_edge_anims_iso), lag_ratio=0.05), run_time=0.75)
                 self.wait(1)
-                self.play(FadeOut(saturated_info_text_p2))
-        
-        self.wait(1)
-        self.play(FadeOut(flow_aug2_status_text), FadeOut(path2_found_text), FadeOut(path2_bottleneck_text))
-        self.wait(1)
+                self.update_status_text("Level Graph Isolated. Ready for DFS phase.", color=GREEN_A, play_anim=True)
+                self.wait(1)
 
-        end_text = Text("Second flow augmentation complete.", font_size=24)
-        end_text.next_to(self.graph_group, DOWN, buff=0.3)
-        self.play(Write(end_text))
-        self.wait(3)
+                # --- DFS Phase: Find Blocking Flow in LG ---
+                flow_this_phase = self.animate_dfs_path_finding_phase() # Returns total flow pushed in this phase
+                self.max_flow_value += flow_this_phase
+
+                self.update_phase_text(f"End of Dinitz Phase {self.current_phase_num}. Total Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
+                self.wait(1.5)
+
+                if flow_this_phase == 0:
+                     # This means no more augmenting paths were found in the LG constructed by BFS.
+                     # Dinitz algorithm terminates if BFS can't reach sink OR if DFS finds 0 flow in a valid LG.
+                     # The former is caught by `self.levels[self.sink_node] == -1`.
+                     # This case implies LG was built, but DFS found no paths (e.g. source got stuck immediately).
+                     self.update_status_text(f"No augmenting flow found in this LG. Max Flow: {self.max_flow_value:.1f}. Algorithm terminates.", color=YELLOW_C, play_anim=True)
+                     self.wait(3)
+                     break # Exit main Dinitz while loop
+                else: # flow_this_phase > 0
+                     self.update_status_text(f"Blocking flow of {flow_this_phase:.1f} found. Current Max Flow: {self.max_flow_value:.1f}.", color=BLUE_A, play_anim=True)
+                     self.wait(1.5) # Pause before next BFS or termination
         
-        # Fade out all visual elements before ending
-        all_mobjects_to_fade = VGroup(title_main, self.graph_group, self.level_texts_vg, end_text)
-        # Filter out None or non-Mobjects just in case, though all here should be fine.
-        # For robustly fading everything actually on screen:
-        self.play(*[FadeOut(mob) for mob in self.mobjects if isinstance(mob, Mobject)])
+        # End of Dinitz Algorithm (either sink unreachable or no more flow in an LG)
+        # Final display of max flow already handled by status texts.
+        self.update_section_title("3. Algorithm Complete", play_anim=True)
+        # Final status text is already set by the termination condition.
+        
+        # Fade out graph elements for a clean end, keeping titles and final status.
+        final_mobjects_to_keep_list_end = [
+            self.main_title, 
+            self.current_section_title_mobj, 
+            self.phase_text_mobj, 
+            self.algo_status_mobj,
+            self.level_display_vgroup # Keep final level display if relevant
+        ]
+        mobjects_to_fade_out_finally = Group()
+        for mobj in self.mobjects:
+            is_kept = False
+            for kept_group_or_item in final_mobjects_to_keep_list_end:
+                if mobj is kept_group_or_item or (isinstance(kept_group_or_item, VGroup) and mobj in kept_group_or_item.submobjects):
+                    is_kept = True
+                    break
+            if not is_kept and mobj is not None:
+                 mobjects_to_fade_out_finally.add(mobj)
+        
+        if mobjects_to_fade_out_finally.submobjects:
+            self.play(FadeOut(mobjects_to_fade_out_finally), run_time=1.5)
+        
+        self.wait(3) # Hold final message and state
