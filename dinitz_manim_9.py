@@ -13,7 +13,7 @@ PHASE_TEXT_FONT_SIZE = 22    # For text below section title
 STATUS_TEXT_FONT_SIZE = 20   # For text below phase title
 NODE_LABEL_FONT_SIZE = 16
 EDGE_CAPACITY_LABEL_FONT_SIZE = 12
-EDGE_FLOW_PREFIX_FONT_SIZE = 12 # Kept for consistency, visual size managed by match_height
+EDGE_FLOW_PREFIX_FONT_SIZE = 12 
 LEVEL_TEXT_FONT_SIZE = 18
 
 MAIN_TITLE_SMALL_SCALE = 0.65
@@ -195,22 +195,7 @@ class DinitzAlgorithmVisualizer(Scene):
     def animate_dfs_path_finding_phase(self):
         self.ptr = {v_id: 0 for v_id in self.vertices_data}
 
-        if not hasattr(self, 'base_node_visual_attrs'): # pragma: no cover
-            self.base_node_visual_attrs = {}
-            for v_id_loop, node_group in self.node_mobjects.items():
-                dot = node_group[0]
-                self.base_node_visual_attrs[v_id_loop] = {
-                    "width": dot.get_width(), "fill_color": dot.get_fill_color(),
-                    "stroke_color": dot.get_stroke_color(), "stroke_width": dot.get_stroke_width(),
-                    "opacity": dot.get_fill_opacity()
-                }
-        if not hasattr(self, 'base_edge_visual_attrs'): # pragma: no cover
-            self.base_edge_visual_attrs = {}
-            for edge_key_loop, edge_mo_loop in self.edge_mobjects.items():
-                self.base_edge_visual_attrs[edge_key_loop] = {
-                    "color": edge_mo_loop.get_color(), "stroke_width": edge_mo_loop.get_stroke_width(),
-                    "opacity": edge_mo_loop.get_stroke_opacity()
-                }
+        # base_node_visual_attrs and base_edge_visual_attrs are already set in construct after scaling
 
         total_flow_this_phase = 0
         path_count_this_phase = 0
@@ -265,14 +250,20 @@ class DinitzAlgorithmVisualizer(Scene):
                     color=LABEL_TEXT_COLOR
                 )
                 
-                target_text_template.match_height(old_flow_text_mobj)
-                
+                # Set height to the consistent scaled height stored previously
+                if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height is not None:
+                    target_text_template.set_height(self.scaled_flow_text_height)
+                else:
+                    # Fallback if scaled_flow_text_height wasn't set (should not happen in normal flow)
+                    # This ensures it doesn't crash but might not be perfectly sized.
+                    target_text_template.match_height(old_flow_text_mobj) # Revert to old method as a last resort
+                    print("Warning: scaled_flow_text_height not found, using match_height as fallback.")
+
+
                 target_text_template.move_to(old_flow_text_mobj.get_center())
                 target_text_template.rotate(arrow.get_angle(), about_point=target_text_template.get_center())
 
-
                 text_update_anims.append(old_flow_text_mobj.animate.become(target_text_template))
-
 
                 res_cap_after = self.capacities[(u,v)] - self.flow.get((u,v),0)
                 is_still_lg_edge = (self.levels.get(u,-1)!=-1 and self.levels.get(v,-1)!=-1 and \
@@ -291,11 +282,16 @@ class DinitzAlgorithmVisualizer(Scene):
 
             self.wait(1.0)
 
-        self.remove(self.dfs_traversal_highlights)
+        if self.dfs_traversal_highlights.submobjects: # Check if there are any highlights to remove
+            self.remove(self.dfs_traversal_highlights)
         return total_flow_this_phase
 
     def construct(self):
         self.setup_titles_and_placeholders()
+        
+        # Initialize scaled_flow_text_height
+        self.scaled_flow_text_height = None
+
 
         self.source_node, self.sink_node = 1, 10
         self.vertices_data = list(range(1, 11))
@@ -388,6 +384,18 @@ class DinitzAlgorithmVisualizer(Scene):
         self.play(
             self.network_display_group.animate.scale(self.desired_large_scale).move_to(target_position)
         )
+        
+        # Store the consistent scaled height for flow text AFTER the group has been scaled
+        if self.edge_flow_val_text_mobjects:
+            first_edge_key = next(iter(self.edge_flow_val_text_mobjects))
+            sample_flow_mobj = self.edge_flow_val_text_mobjects[first_edge_key]
+            self.scaled_flow_text_height = sample_flow_mobj.height
+        else:
+            # Fallback if there are no edges (though DFS phase might not be meaningful then)
+            # This creates an unscaled text and estimates its scaled height.
+            dummy_text = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE)
+            self.scaled_flow_text_height = dummy_text.height * self.desired_large_scale
+
 
         self.base_node_visual_attrs = {}
         for v_id, node_group in self.node_mobjects.items():
@@ -524,7 +532,6 @@ class DinitzAlgorithmVisualizer(Scene):
             self.wait(3)
             
             final_mobjects_to_keep_list = [self.main_title, self.current_section_title_mobj, self.phase_text_mobj, self.algo_status_mobj]
-            # Use Group for mobjects_to_fade as self.mobjects can contain non-VMobjects
             mobjects_to_fade = Group(*[m for m in self.mobjects if m not in final_mobjects_to_keep_list and m is not None])
             if mobjects_to_fade.submobjects: 
                 self.play(FadeOut(mobjects_to_fade))
@@ -547,7 +554,6 @@ class DinitzAlgorithmVisualizer(Scene):
             else:
                 non_lg_edge_anims.append(edge_mo_lg.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR))
         
-        # Combine animations into a list before creating AnimationGroup
         all_edge_animations_list = non_lg_edge_anims + lg_edge_anims
         if all_edge_animations_list:
             self.play(AnimationGroup(*all_edge_animations_list, lag_ratio=0.05), run_time=0.75)
@@ -571,7 +577,6 @@ class DinitzAlgorithmVisualizer(Scene):
         self.wait(3)
 
         final_mobjects_to_keep_list_end = [self.main_title, self.current_section_title_mobj, self.phase_text_mobj, self.algo_status_mobj]
-        # Use Group for mobjects_to_fade_out_finally
         mobjects_to_fade_out_finally = Group(*[m for m in self.mobjects if m not in final_mobjects_to_keep_list_end and m is not None])
         if mobjects_to_fade_out_finally.submobjects:
             self.play(FadeOut(mobjects_to_fade_out_finally), run_time=1.5)
