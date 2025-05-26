@@ -32,7 +32,7 @@ RING_Z_INDEX = 4
 LEVEL_COLORS = [RED_D, ORANGE, YELLOW_D, GREEN_D, BLUE_D, PURPLE_D, PINK]
 DEFAULT_NODE_COLOR = BLUE_E
 DEFAULT_EDGE_COLOR = GREY_C
-LABEL_TEXT_COLOR = DARK_GREY
+LABEL_TEXT_COLOR = DARK_GREY # Used for edge labels, node labels are initially WHITE
 LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH = 4.5
 DFS_EDGE_TRY_WIDTH = LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH * 1.15
 DFS_PATH_EDGE_WIDTH = LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH * 1.25
@@ -233,10 +233,6 @@ class DinitzAlgorithmVisualizer(Scene):
         self.dfs_traversal_highlights.remove(highlight_ring)
         return 0 # Return 0 to indicate no path to sink found from u with remaining edges
 
-    # --- TODO: Animate flow augmentation and residual graph updates --- 
-    # (Addressed in this function by updating flow values, their text labels,
-    # and edge appearances based on saturation. Reverse flow logic for self.flow also added.)
-    # --- TODO: Animate max flow calculation and display --- (Addressed by overall flow updates and text)
     def animate_dfs_path_finding_phase(self):
         # This function orchestrates the DFS phase to find a blocking flow in the current level graph.
         
@@ -400,6 +396,7 @@ class DinitzAlgorithmVisualizer(Scene):
         nodes_vgroup = VGroup() # Group for all node mobjects
         for v_id in self.vertices_data:
             dot = Dot(point=self.graph_layout[v_id], radius=NODE_RADIUS, color=DEFAULT_NODE_COLOR, z_index=2, stroke_color=BLACK, stroke_width=NODE_STROKE_WIDTH)
+            # Node labels are initially WHITE by default Text behavior
             label = Text(str(v_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD).move_to(dot.get_center()).set_z_index(3)
             self.node_mobjects[v_id] = VGroup(dot,label); nodes_vgroup.add(self.node_mobjects[v_id])
         self.play(LaggedStart(*[GrowFromCenter(self.node_mobjects[vid]) for vid in self.vertices_data], lag_ratio=0.05), run_time=1.5)
@@ -475,15 +472,18 @@ class DinitzAlgorithmVisualizer(Scene):
         self.base_node_visual_attrs = {} 
         for v_id, node_group in self.node_mobjects.items():
             dot = node_group[0]
+            label = node_group[1] # Get the label mobject
             self.base_node_visual_attrs[v_id] = {
                 "width": dot.get_width(), "fill_color": dot.get_fill_color(),
                 "stroke_color": dot.get_stroke_color(), "stroke_width": dot.get_stroke_width(),
-                "opacity": dot.get_fill_opacity()
+                "opacity": dot.get_fill_opacity(),
+                "label_color": label.get_color() # Store initial label color (should be WHITE)
             }
         self.base_edge_visual_attrs = {}
         for edge_key, edge_mo in self.edge_mobjects.items():
             self.base_edge_visual_attrs[edge_key] = {
-                "color": edge_mo.get_color(), "stroke_width": edge_mo.get_stroke_width(),
+                "color": edge_mo.get_color(), # Should be DEFAULT_EDGE_COLOR
+                "stroke_width": edge_mo.get_stroke_width(),
                 "opacity": edge_mo.get_stroke_opacity()
             }
 
@@ -517,15 +517,6 @@ class DinitzAlgorithmVisualizer(Scene):
             current_bfs_level_num = 0
             self.levels[self.source_node] = current_bfs_level_num
             q_bfs.append(self.source_node)
-
-            # Animate source node for BFS start
-            s_dot_obj = self.node_mobjects[self.source_node][0]; s_lbl_obj = self.node_mobjects[self.source_node][1]
-            s_base_width = self.base_node_visual_attrs[self.source_node]["width"]
-            self.play(
-                s_dot_obj.animate.set_fill(LEVEL_COLORS[0]).set_width(s_base_width * 1.1), # Highlight source
-                s_lbl_obj.animate.set_color(BLACK if sum(color_to_rgb(LEVEL_COLORS[0])) > 1.5 else WHITE), # Adjust label color for contrast
-                run_time=0.5
-            )
             
             # Display level information on screen
             # Clear previous level display if any
@@ -544,19 +535,20 @@ class DinitzAlgorithmVisualizer(Scene):
             self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL).to_corner(UR, buff=BUFF_LARGE)
             self.play(Write(l0_vg))
             max_level_text_width = config.frame_width * 0.30 # Max width for level display to avoid overflow
-
-            bfs_path_found_to_sink_this_phase = False
             
-            # Restore all original graph edges to default appearance before highlighting LG edges for this phase
-            # Also reset node appearances from previous LG.
+            # --- Visual Reset before new BFS phase ---
+            # Restore all original graph nodes and edges to their base appearance.
+            # This ensures that visual styles from the previous phase (e.g., dimming, level colors)
+            # do not incorrectly carry over to the new phase's LG construction.
             restore_anims = []
-            for v_id, node_group_attrs in self.base_node_visual_attrs.items():
+            for v_id, node_attrs in self.base_node_visual_attrs.items():
                 node_dot = self.node_mobjects[v_id][0]
                 node_lbl = self.node_mobjects[v_id][1]
-                restore_anims.append(node_dot.animate.set_width(node_group_attrs["width"])
-                                                        .set_fill(node_group_attrs["fill_color"], opacity=node_group_attrs["opacity"])
-                                                        .set_stroke(color=node_group_attrs["stroke_color"], width=node_group_attrs["stroke_width"]))
-                restore_anims.append(node_lbl.animate.set_color(LABEL_TEXT_COLOR)) # Assuming default label color
+                restore_anims.append(node_dot.animate.set_width(node_attrs["width"])
+                                                        .set_fill(node_attrs["fill_color"], opacity=node_attrs["opacity"])
+                                                        .set_stroke(color=node_attrs["stroke_color"], width=node_attrs["stroke_width"]))
+                # Restore node label to its original color
+                restore_anims.append(node_lbl.animate.set_color(node_attrs["label_color"])) 
             
             for edge_key, edge_attrs in self.base_edge_visual_attrs.items():
                 edge_mo = self.edge_mobjects.get(edge_key)
@@ -566,68 +558,63 @@ class DinitzAlgorithmVisualizer(Scene):
             if restore_anims:
                 self.play(AnimationGroup(*restore_anims, lag_ratio=0.01, run_time=0.75))
             
-            # Re-highlight S and T rings if they were affected
+            # Re-highlight S and T rings (as they might be part of network_display_group affected by general fades)
+            # and re-color the source node for the start of the current BFS.
+            s_dot_obj = self.node_mobjects[self.source_node][0]; s_lbl_obj = self.node_mobjects[self.source_node][1]
+            s_base_width = self.base_node_visual_attrs[self.source_node]["width"]
+            s_label_base_color = self.base_node_visual_attrs[self.source_node]["label_color"]
+
             self.play(
-                self.source_ring_mobj.animate.set_opacity(1), self.sink_ring_mobj.animate.set_opacity(1),
-                self.node_mobjects[self.source_node][0].animate.set_fill(LEVEL_COLORS[0]).set_width(self.base_node_visual_attrs[self.source_node]["width"] * 1.1), # Re-color source for current BFS
-                self.node_mobjects[self.source_node][1].animate.set_color(BLACK if sum(color_to_rgb(LEVEL_COLORS[0])) > 1.5 else WHITE)
+                self.source_ring_mobj.animate.set_opacity(1), 
+                self.sink_ring_mobj.animate.set_opacity(1),
+                s_dot_obj.animate.set_fill(LEVEL_COLORS[0]).set_width(s_base_width * 1.1), 
+                s_lbl_obj.animate.set_color(BLACK if sum(color_to_rgb(LEVEL_COLORS[0])) > 1.5 else WHITE) # Contrast color for S label against its new level color
             )
 
 
             # BFS main loop
             while q_bfs:
                 nodes_to_process_this_level = list(q_bfs); q_bfs.clear() # Process one level at a time
-                if not nodes_to_process_this_level: break # Should not happen if q_bfs was not empty
+                if not nodes_to_process_this_level: break 
 
-                # Determine target level for neighbors
-                # All nodes in nodes_to_process_this_level are at the same level.
-                # Their valid neighbors will be at levels[nodes_to_process_this_level[0]] + 1.
                 target_level = self.levels[nodes_to_process_this_level[0]] + 1
                 
-                nodes_found_next_lvl_set = set() # Nodes found at target_level
-                node_color_anims_bfs = []       # Animations for node coloring
-                edge_highlight_anims_bfs_step = [] # Animations for edge highlighting
+                nodes_found_next_lvl_set = set() 
+                node_color_anims_bfs = []      
+                edge_highlight_anims_bfs_step = [] 
 
                 for u_bfs in nodes_to_process_this_level:
                     node_to_indicate = self.node_mobjects[u_bfs]
-                    # Briefly indicate the node u_bfs from which we are exploring
                     ind_u = SurroundingRectangle(node_to_indicate, color=YELLOW_C, buff=0.03, stroke_width=2.0, corner_radius=0.05)
                     self.play(Create(ind_u), run_time=0.15)
 
-                    # Explore neighbors v_n_bfs of u_bfs
                     for v_n_bfs in self.adj[u_bfs]: 
-                        # Calculate residual capacity of edge (u_bfs, v_n_bfs)
                         res_cap_bfs = self.capacities.get((u_bfs,v_n_bfs),0) - self.flow.get((u_bfs,v_n_bfs),0)
                         
-                        # If neighbor is unvisited (level == -1) and edge has positive residual capacity:
                         if res_cap_bfs > 0 and self.levels[v_n_bfs] == -1: 
-                            self.levels[v_n_bfs] = target_level # Assign level
+                            self.levels[v_n_bfs] = target_level 
                             nodes_found_next_lvl_set.add(v_n_bfs)
-                            q_bfs.append(v_n_bfs) # Add to queue for next level processing
+                            q_bfs.append(v_n_bfs) 
                             
-                            # Animate node coloring for v_n_bfs
                             lvl_color = LEVEL_COLORS[target_level % len(LEVEL_COLORS)]
                             n_v_dot = self.node_mobjects[v_n_bfs][0]; n_v_lbl = self.node_mobjects[v_n_bfs][1]
                             v_base_width = self.base_node_visual_attrs[v_n_bfs]["width"]
                             node_color_anims_bfs.append(n_v_dot.animate.set_fill(lvl_color).set_width(v_base_width * 1.1))
-                            rgb_c = color_to_rgb(lvl_color); lbl_c = BLACK if sum(rgb_c)>1.5 else WHITE # Label contrast
+                            rgb_c = color_to_rgb(lvl_color); lbl_c = BLACK if sum(rgb_c)>1.5 else WHITE 
                             node_color_anims_bfs.append(n_v_lbl.animate.set_color(lbl_c))
                             
-                            # Animate edge highlighting if it's an original edge with a mobject
                             edge_mo_bfs = self.edge_mobjects.get((u_bfs, v_n_bfs))
                             if edge_mo_bfs:
-                                 edge_color_bfs = LEVEL_COLORS[self.levels[u_bfs]%len(LEVEL_COLORS)] # Color based on source node's level
+                                 edge_color_bfs = LEVEL_COLORS[self.levels[u_bfs]%len(LEVEL_COLORS)] 
                                  edge_highlight_anims_bfs_step.append(edge_mo_bfs.animate.set_color(edge_color_bfs).set_stroke(width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH))
                             
-                            if v_n_bfs == self.sink_node: bfs_path_found_to_sink_this_phase = True
+                            # No need for bfs_path_found_to_sink_this_phase, sink reachability checked by levels[self.sink_node]
                     
-                    self.play(FadeOut(ind_u), run_time=0.15) # Remove indication from u_bfs
+                    self.play(FadeOut(ind_u), run_time=0.15) 
                 
-                # Play animations for nodes and edges discovered at this step of BFS
                 if node_color_anims_bfs or edge_highlight_anims_bfs_step: 
                     self.play(AnimationGroup(*(node_color_anims_bfs + edge_highlight_anims_bfs_step), lag_ratio=0.1), run_time=0.6)
                 
-                # Update the on-screen level display
                 if nodes_found_next_lvl_set:
                     n_str = ", ".join(map(str, sorted(list(nodes_found_next_lvl_set))))
                     l_px = Text(f"L{target_level}:", font_size=LEVEL_TEXT_FONT_SIZE, color=LEVEL_COLORS[target_level%len(LEVEL_COLORS)])
@@ -635,36 +622,32 @@ class DinitzAlgorithmVisualizer(Scene):
                     l_vg = VGroup(l_px,l_nx).arrange(RIGHT,buff=BUFF_VERY_SMALL)
                     self.level_display_vgroup.add(l_vg)
                     self.level_display_vgroup.arrange(DOWN, aligned_edge=LEFT, buff=BUFF_SMALL).to_corner(UR, buff=BUFF_LARGE)
-                    # Scale if too wide
                     if self.level_display_vgroup.width > max_level_text_width: 
                         self.level_display_vgroup.scale_to_fit_width(max_level_text_width).to_corner(UR, buff=BUFF_LARGE)
                     self.play(Write(l_vg)); self.wait(0.3)
                 
-                if not q_bfs : break # BFS queue is empty, current BFS exploration ends
+                if not q_bfs : break 
 
             # --- After BFS for current phase ---
-            if self.levels[self.sink_node] == -1: # Sink not reached by BFS
+            if self.levels[self.sink_node] == -1: 
                 self.update_status_text(f"Sink T={self.sink_node} NOT Reached by BFS. Algorithm Terminates. Final Max Flow: {self.max_flow_value:.1f}", color=RED_C)
                 self.wait(3)
-                break # Exit main Dinitz while loop
-            else: # Sink reached, Level Graph construction continues for visualization
+                break 
+            else: 
                 self.update_status_text(f"Sink T={self.sink_node} Reached at Level L{self.levels[self.sink_node]}. Level Graph (LG) Built.", color=GREEN_A)
                 self.wait(0.5)
                 self.update_status_text("Isolating LG: Highlighting valid forward edges, dimming others.", play_anim=True)
                 
                 lg_edge_anims_iso = []; non_lg_edge_anims_iso = []
-                # Iterate over original edges to update their appearance based on LG
                 for (u_lg,v_lg), edge_mo_lg in self.edge_mobjects.items():
                     res_cap_lg = self.capacities[(u_lg,v_lg)]-self.flow.get((u_lg,v_lg),0)
-                    # Check if this original edge (u_lg, v_lg) is part of the current LG
                     is_lg_edge = (self.levels.get(u_lg,-1)!=-1 and self.levels.get(v_lg,-1)!=-1 and \
                                     self.levels[v_lg]==self.levels[u_lg]+1 and \
                                     res_cap_lg > 0 )
                     if is_lg_edge:
-                        edge_c = LEVEL_COLORS[self.levels[u_lg]%len(LEVEL_COLORS)] # Color by source node's level
+                        edge_c = LEVEL_COLORS[self.levels[u_lg]%len(LEVEL_COLORS)] 
                         lg_edge_anims_iso.append(edge_mo_lg.animate.set_stroke(opacity=1.0, width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH).set_color(edge_c))
                     else:
-                        # Dim edges not part of the LG
                         non_lg_edge_anims_iso.append(edge_mo_lg.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR))
                 
                 if non_lg_edge_anims_iso + lg_edge_anims_iso: 
@@ -674,36 +657,28 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.wait(1)
 
                 # --- DFS Phase: Find Blocking Flow in LG ---
-                flow_this_phase = self.animate_dfs_path_finding_phase() # Returns total flow pushed in this phase
+                flow_this_phase = self.animate_dfs_path_finding_phase() 
                 self.max_flow_value += flow_this_phase
 
                 self.update_phase_text(f"End of Dinitz Phase {self.current_phase_num}. Total Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.wait(1.5)
 
                 if flow_this_phase == 0:
-                     # This means no more augmenting paths were found in the LG constructed by BFS.
-                     # Dinitz algorithm terminates if BFS can't reach sink OR if DFS finds 0 flow in a valid LG.
-                     # The former is caught by `self.levels[self.sink_node] == -1`.
-                     # This case implies LG was built, but DFS found no paths (e.g. source got stuck immediately).
                      self.update_status_text(f"No augmenting flow found in this LG. Max Flow: {self.max_flow_value:.1f}. Algorithm terminates.", color=YELLOW_C, play_anim=True)
                      self.wait(3)
-                     break # Exit main Dinitz while loop
-                else: # flow_this_phase > 0
+                     break 
+                else: 
                      self.update_status_text(f"Blocking flow of {flow_this_phase:.1f} found. Current Max Flow: {self.max_flow_value:.1f}.", color=BLUE_A, play_anim=True)
-                     self.wait(1.5) # Pause before next BFS or termination
+                     self.wait(1.5) 
         
-        # End of Dinitz Algorithm (either sink unreachable or no more flow in an LG)
-        # Final display of max flow already handled by status texts.
         self.update_section_title("3. Algorithm Complete", play_anim=True)
-        # Final status text is already set by the termination condition.
         
-        # Fade out graph elements for a clean end, keeping titles and final status.
         final_mobjects_to_keep_list_end = [
             self.main_title, 
             self.current_section_title_mobj, 
             self.phase_text_mobj, 
             self.algo_status_mobj,
-            self.level_display_vgroup # Keep final level display if relevant
+            self.level_display_vgroup 
         ]
         mobjects_to_fade_out_finally = Group()
         for mobj in self.mobjects:
@@ -718,4 +693,4 @@ class DinitzAlgorithmVisualizer(Scene):
         if mobjects_to_fade_out_finally.submobjects:
             self.play(FadeOut(mobjects_to_fade_out_finally), run_time=1.5)
         
-        self.wait(3) # Hold final message and state
+        self.wait(3)
