@@ -175,22 +175,22 @@ class DinitzAlgorithmVisualizer(Scene):
         )
 
         # --- MODIFICATION START ---
-        # Position the target_text_template relative to the sink node.
-        # This ensures it's always "exactly above" the sink node upon update.
+        # Position the target_text_template relative to the SOURCE node.
+        # This ensures it's always "exactly above" the SOURCE node upon update.
         if hasattr(self, 'node_mobjects') and \
-           hasattr(self, 'sink_node') and \
-           self.sink_node in self.node_mobjects and \
-           self.node_mobjects.get(self.sink_node) is not None: # Check if sink_node key exists and its value is not None
-            # Ensure that self.node_mobjects[self.sink_node] is a VGroup and has at least one element (the dot)
-            sink_node_group = self.node_mobjects[self.sink_node]
-            if isinstance(sink_node_group, VGroup) and len(sink_node_group.submobjects) > 0:
-                sink_node_dot = sink_node_group[0]
-                target_text_template.next_to(sink_node_dot, UP, buff=BUFF_SMALL)
+           hasattr(self, 'source_node') and \
+           self.source_node in self.node_mobjects and \
+           self.node_mobjects.get(self.source_node) is not None: # Check if source_node key exists and its value is not None
+            # Ensure that self.node_mobjects[self.source_node] is a VGroup and has at least one element (the dot)
+            source_node_group = self.node_mobjects[self.source_node]
+            if isinstance(source_node_group, VGroup) and len(source_node_group.submobjects) > 0:
+                source_node_dot = source_node_group[0] # Assumes the first element is the Dot
+                target_text_template.next_to(source_node_dot, UP, buff=BUFF_SMALL)
             else:
-                # Fallback: if sink_node_group is not as expected, position at current mobject's center.
+                # Fallback: if source_node_group is not as expected, position at current mobject's center.
                 target_text_template.move_to(current_mobj.get_center())
         else:
-            # Fallback: if sink node attributes/mobjects aren't ready, position at current mobject's center.
+            # Fallback: if source node attributes/mobjects aren't ready, position at current mobject's center.
             target_text_template.move_to(current_mobj.get_center())
         
         # Preserve the Z-index
@@ -223,7 +223,6 @@ class DinitzAlgorithmVisualizer(Scene):
             current_mobj.become(target_text_template)
             if current_mobj not in self.mobjects: # Ensure it's on scene
                 self.add(current_mobj)
-
 
     def _dfs_recursive_find_path_anim(self, u, pushed, current_path_info_list):
         u_dot_group = self.node_mobjects[u]
