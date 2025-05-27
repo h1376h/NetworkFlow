@@ -163,9 +163,9 @@ class DinitzAlgorithmVisualizer(Scene):
                 actual_v = v_candidate
                 edge_mo_for_v = edge_mo_cand
 
-                original_edge_color = edge_mo_for_v.get_color()
-                original_edge_width = edge_mo_for_v.get_stroke_width()
-                original_edge_opacity = edge_mo_for_v.get_stroke_opacity()
+                original_edge_color = edge_mo_for_v.get_color() # No change for get_color() here as it's on Arrow, not Text
+                original_edge_width = edge_mo_for_v.stroke_width
+                original_edge_opacity = edge_mo_for_v.stroke_opacity
 
                 current_anims_try = [
                     edge_mo_for_v.animate.set_color(YELLOW_A).set_stroke(width=DFS_EDGE_TRY_WIDTH, opacity=1.0)
@@ -175,7 +175,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     if label_mobj:
                         target_label = Text(f"{res_cap_cand:.0f}", font=label_mobj.font, font_size=label_mobj.font_size, color=YELLOW_A)
                         target_label.move_to(label_mobj.get_center()).set_opacity(1.0)
-                        if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label.set_height(self.scaled_flow_text_height * 0.9)
+                        if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label.height = self.scaled_flow_text_height * 0.9
                         current_anims_try.append(label_mobj.animate.become(target_label))
 
                 self.update_status_text(f"DFS Try: Edge ({u},{actual_v}), Res.Cap: {res_cap_cand:.0f}.", play_anim=False)
@@ -207,7 +207,7 @@ class DinitzAlgorithmVisualizer(Scene):
                              lg_color = LEVEL_COLORS[self.levels[u]%len(LEVEL_COLORS)]
                              target_label_revert = Text(f"{res_cap_cand:.0f}", font=label_mobj.font, font_size=label_mobj.font_size, color=lg_color)
                              target_label_revert.move_to(label_mobj.get_center()).set_opacity(1.0)
-                             if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label_revert.set_height(self.scaled_flow_text_height * 0.9)
+                             if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label_revert.height = self.scaled_flow_text_height * 0.9
                              current_anims_backtrack_restore.append(label_mobj.animate.become(target_label_revert))
                         else:
                              current_anims_backtrack_restore.append(label_mobj.animate.set_opacity(0.0))
@@ -296,7 +296,8 @@ class DinitzAlgorithmVisualizer(Scene):
                     new_flow_val_uv = self.flow[(u,v)]
                     new_flow_str_uv = f"{new_flow_val_uv:.0f}" if abs(new_flow_val_uv - round(new_flow_val_uv)) < 0.01 else f"{new_flow_val_uv:.1f}"
                     target_text_template_uv = Text(new_flow_str_uv, font=old_flow_text_mobj.font, font_size=old_flow_text_mobj.font_size, color=LABEL_TEXT_COLOR)
-                    if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_text_template_uv.set_height(self.scaled_flow_text_height)
+                    if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height:
+                        target_text_template_uv.height = self.scaled_flow_text_height # FIX 1
                     else: target_text_template_uv.match_height(old_flow_text_mobj)
                     target_text_template_uv.move_to(old_flow_text_mobj.get_center()).rotate(edge_mo.get_angle(), about_point=target_text_template_uv.get_center())
                     text_update_anims.append(old_flow_text_mobj.animate.become(target_text_template_uv))
@@ -318,7 +319,7 @@ class DinitzAlgorithmVisualizer(Scene):
                         if label_mobj_uv:
                             target_label_uv = Text(f"{res_cap_after_uv:.0f}", font=label_mobj_uv.font, font_size=label_mobj_uv.font_size, color=lg_color_uv)
                             target_label_uv.move_to(label_mobj_uv.get_center()).set_opacity(1.0)
-                            if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label_uv.set_height(self.scaled_flow_text_height * 0.9)
+                            if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label_uv.height = self.scaled_flow_text_height * 0.9
                             augmentation_anims.append(label_mobj_uv.animate.become(target_label_uv))
 
 
@@ -348,7 +349,8 @@ class DinitzAlgorithmVisualizer(Scene):
                                 lg_color_vu_label = LEVEL_COLORS[self.levels[v]%len(LEVEL_COLORS)]
                                 target_label_vu = Text(f"{res_cap_vu:.0f}", font=label_mobj_vu.font, font_size=label_mobj_vu.font_size, color=lg_color_vu_label)
                                 target_label_vu.move_to(label_mobj_vu.get_center()).set_opacity(1.0)
-                                if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label_vu.set_height(self.scaled_flow_text_height * 0.9)
+                                if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height:
+                                    target_label_vu.height = self.scaled_flow_text_height * 0.9 # FIX 2
                                 augmentation_anims.append(label_mobj_vu.animate.become(target_label_vu))
                             else:
                                 augmentation_anims.append(label_mobj_vu.animate.set_opacity(0.0))
@@ -358,7 +360,7 @@ class DinitzAlgorithmVisualizer(Scene):
                             new_rev_flow_val_vu = self.flow[(v,u)]
                             new_rev_flow_str_vu = f"{new_rev_flow_val_vu:.0f}" if abs(new_rev_flow_val_vu - round(new_rev_flow_val_vu)) < 0.01 else f"{new_rev_flow_val_vu:.1f}"
                             target_rev_text_template_vu = Text(new_rev_flow_str_vu, font=old_rev_flow_text_mobj.font, font_size=old_rev_flow_text_mobj.font_size, color=LABEL_TEXT_COLOR)
-                            if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_rev_text_template_vu.set_height(self.scaled_flow_text_height)
+                            if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_rev_text_template_vu.height = self.scaled_flow_text_height
                             else: target_rev_text_template_vu.match_height(old_rev_flow_text_mobj)
                             target_rev_text_template_vu.move_to(old_rev_flow_text_mobj.get_center()).rotate(rev_edge_mo_vu.get_angle(), about_point=target_rev_text_template_vu.get_center())
                             text_update_anims.append(old_rev_flow_text_mobj.animate.become(target_rev_text_template_vu))
@@ -528,11 +530,26 @@ class DinitzAlgorithmVisualizer(Scene):
         self.base_node_visual_attrs = {}
         for v_id, node_group in self.node_mobjects.items():
             dot, label = node_group
-            self.base_node_visual_attrs[v_id] = {"width": dot.get_width(), "fill_color": dot.get_fill_color(), "stroke_color": dot.get_stroke_color(), "stroke_width": dot.get_stroke_width(), "opacity": dot.get_fill_opacity(), "label_color": label.get_color()}
+            # FIX 3: Access attributes directly
+            self.base_node_visual_attrs[v_id] = {
+                "width": dot.width,
+                "fill_color": dot.fill_color,
+                "stroke_color": dot.stroke_color,
+                "stroke_width": dot.stroke_width,
+                "opacity": dot.fill_opacity, # fill_opacity is correct for Dot
+                "label_color": label.color
+            }
 
         self.base_edge_visual_attrs = {}
         for edge_key, edge_mo in self.edge_mobjects.items():
-            self.base_edge_visual_attrs[edge_key] = {"color": edge_mo.get_color(), "stroke_width": edge_mo.get_stroke_width(), "opacity": edge_mo.get_stroke_opacity()}
+            # get_color(), get_stroke_width(), get_stroke_opacity() are generally fine for VMobject based classes like Arrow
+            # However, direct access is preferred if available and consistent.
+            # Arrow's color is its stroke_color.
+            self.base_edge_visual_attrs[edge_key] = {
+                "color": edge_mo.color, # For Arrow, .color refers to stroke_color
+                "stroke_width": edge_mo.stroke_width,
+                "opacity": edge_mo.stroke_opacity
+            }
             if edge_key not in self.base_label_visual_attrs:
                  self.base_label_visual_attrs[edge_key] = {"opacity": 0.0}
 
@@ -652,7 +669,8 @@ class DinitzAlgorithmVisualizer(Scene):
                                     res_cap_mobj = self.edge_residual_capacity_mobjects.get(edge_key_bfs)
                                     if res_cap_mobj:
                                         target_text = Text(f"{res_cap_bfs:.0f}", font=res_cap_mobj.font, font_size=res_cap_mobj.font_size, color=edge_color_u_for_lg)
-                                        if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_text.set_height(self.scaled_flow_text_height * 0.9)
+                                        if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height:
+                                            target_text.height = self.scaled_flow_text_height * 0.9 # FIX 4
                                         target_text.move_to(res_cap_mobj.get_center()).set_opacity(1.0)
                                         bfs_anims_this_step.append(res_cap_mobj.animate.become(target_text))
                                 else:
@@ -706,7 +724,8 @@ class DinitzAlgorithmVisualizer(Scene):
                                 res_cap_mobj = self.edge_residual_capacity_mobjects.get((u_lg,v_lg))
                                 if res_cap_mobj:
                                     target_text = Text(f"{res_cap_lg_val:.0f}", font=res_cap_mobj.font, font_size=res_cap_mobj.font_size, color=lg_color)
-                                    if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_text.set_height(self.scaled_flow_text_height * 0.9)
+                                    if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height:
+                                        target_text.height = self.scaled_flow_text_height * 0.9 # FIX 5
                                     target_text.move_to(res_cap_mobj.get_center()).set_opacity(1.0)
                                     lg_iso_anims.append(res_cap_mobj.animate.become(target_text))
                             else:
