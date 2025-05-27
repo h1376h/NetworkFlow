@@ -394,7 +394,7 @@ class DinitzAlgorithmVisualizer(Scene):
         self.wait(1.5)
 
         self.scaled_flow_text_height = None
-        self.update_section_title("1. Building the Flow Network", play_anim=False)
+        self.update_section_title("1. Building the Flow Network", play_anim=True)
         # The following two lines were causing premature display of status and max flow.
         # By removing them, self.algo_status_mobj and self.max_flow_display_mobj
         # will remain as Text("") (empty and thus invisible) until updated later with play_anim=True.
@@ -540,14 +540,16 @@ class DinitzAlgorithmVisualizer(Scene):
         self.source_ring_mobj = Circle(radius=self.node_mobjects[self.source_node][0].width/2 + RING_RADIUS_OFFSET, color=RING_COLOR, stroke_width=RING_STROKE_WIDTH).move_to(self.node_mobjects[self.source_node][0].get_center()).set_z_index(RING_Z_INDEX)
         self.sink_ring_mobj = Circle(radius=self.node_mobjects[self.sink_node][0].width/2 + RING_RADIUS_OFFSET, color=RING_COLOR, stroke_width=RING_STROKE_WIDTH).move_to(self.node_mobjects[self.sink_node][0].get_center()).set_z_index(RING_Z_INDEX)
         self.play(Create(self.source_ring_mobj), Create(self.sink_ring_mobj))
-        self.update_status_text("Source (S) and Sink (T) identified.", play_anim=True); self.wait(2.5)
+        # Has position issues, fix it and then uncomment it
+        # self.update_status_text("Source (S) and Sink (T) identified.", play_anim=True); self.wait(2.5)
 
         self.update_section_title("2. Running Dinitz's Algorithm", play_anim=True)
         self.wait(1.0)
-        self.update_status_text("Dinitz's algorithm proceeds in phases to find max flow.", play_anim=True)
-        self.wait(3.0)
-        self.update_status_text("Each phase: 1. Build Level Graph (BFS), 2. Find Blocking Flow (DFS).", play_anim=True)
-        self.wait(3.5)
+        # Has position issues, fix it and then uncomment it
+        # self.update_status_text("Dinitz's algorithm proceeds in phases to find max flow.", play_anim=True)
+        # self.wait(3.0)
+        # self.update_status_text("Each phase: 1. Build Level Graph (BFS), 2. Find Blocking Flow (DFS).", play_anim=True)
+        # self.wait(3.5)
 
         while True:
             self.current_phase_num += 1
