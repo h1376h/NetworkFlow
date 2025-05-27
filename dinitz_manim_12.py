@@ -249,9 +249,8 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.wait(3.5)
                 break
             
-            # Increment total flow for this phase and the overall max flow
-            self.max_flow_value += bottleneck_flow      # Update global max flow
-            total_flow_this_phase += bottleneck_flow  # Accumulate for phase summary
+            self.max_flow_value += bottleneck_flow      
+            total_flow_this_phase += bottleneck_flow 
 
             bottleneck_indicator_anims = []
             bottleneck_edges_for_indication = []
@@ -377,11 +376,10 @@ class DinitzAlgorithmVisualizer(Scene):
 
             if text_update_anims or augmentation_anims:
                  self.play(AnimationGroup(*(text_update_anims + augmentation_anims), lag_ratio=0.1), run_time=1.5)
-            else: self.wait(0.1) # Ensure a pause if no edge animations
+            else: self.wait(0.1) 
             
-            # Update the "Sink's value of flow" display AFTER path augmentation visuals
             self.update_max_flow_display(play_anim=True)
-            self.wait(0.5) # Short pause after display update
+            self.wait(0.5) 
 
             self.update_status_text(f"Flow augmented. Current phase flow: {total_flow_this_phase:.1f}. Searching next path...", color=WHITE, play_anim=True)
             self.wait(2.5)
@@ -397,11 +395,14 @@ class DinitzAlgorithmVisualizer(Scene):
 
         self.scaled_flow_text_height = None 
         self.update_section_title("1. Building the Flow Network", play_anim=False)
-        self.update_status_text("Network: Nodes, Edges (Flow / Capacity). Initial flow is 0.", play_anim=False)
+        # The following two lines were causing premature display of status and max flow.
+        # By removing them, self.algo_status_mobj and self.max_flow_display_mobj 
+        # will remain as Text("") (empty and thus invisible) until updated later with play_anim=True.
+        # self.update_status_text("Network: Nodes, Edges (Flow / Capacity). Initial flow is 0.", play_anim=False) 
         
         self.current_phase_num = 0
         self.max_flow_value = 0
-        self.update_max_flow_display(play_anim=False)
+        # self.update_max_flow_display(play_anim=False)
 
         self.source_node, self.sink_node = 1, 10
         self.vertices_data = list(range(1, 11))
@@ -678,7 +679,7 @@ class DinitzAlgorithmVisualizer(Scene):
             if self.levels[self.sink_node] == -1: 
                 self.update_status_text(f"Sink T={self.sink_node} not reached by BFS. No more augmenting paths.", color=RED_C, play_anim=True)
                 self.wait(3.0)
-                self.update_max_flow_display(play_anim=True) # Ensure final flow is displayed by this mobject
+                self.update_max_flow_display(play_anim=True) 
                 self.update_phase_text(f"End of Dinitz. Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.update_status_text(f"Algorithm Terminates. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
                 self.wait(4.5)
@@ -731,12 +732,8 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.wait(2.0)
                 self.update_status_text("Level Graph isolated. Ready for DFS phase.", color=GREEN_A, play_anim=True); self.wait(2.5)
 
-                # animate_dfs_path_finding_phase now updates self.max_flow_value and its display incrementally
                 flow_this_phase = self.animate_dfs_path_finding_phase() 
                 
-                # REMOVED: self.max_flow_value += flow_this_phase (done incrementally inside)
-                # REMOVED: self.update_max_flow_display(play_anim=True) (done incrementally inside)
-
                 self.update_phase_text(f"End of Phase {self.current_phase_num}. Blocking Flow: {flow_this_phase:.1f}. Sink Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.wait(3.5)
                 if self.levels[self.sink_node] != -1 :
@@ -746,14 +743,11 @@ class DinitzAlgorithmVisualizer(Scene):
         self.update_section_title("3. Dinitz Algorithm Summary", play_anim=True)
         self.wait(1.0)
         
-        if self.levels[self.sink_node] != -1: # This case means the algorithm completed phases until no more blocking flow
+        if self.levels[self.sink_node] != -1: 
             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
-        # If loop broke due to sink not reached, status already updated inside loop.
         
-        # REMOVED: self.update_max_flow_display(play_anim=False) (display should be current)
         self.wait(5.0)
 
-        # --- Final Fade Out Logic ---
         mobjects_that_should_remain_on_screen = Group(
             self.main_title,
             self.info_texts_group 
