@@ -54,7 +54,7 @@ class DinitzAlgorithmVisualizer(Scene):
     def setup_titles_and_placeholders(self):
         self.main_title = Text("Visualizing Dinitz's Algorithm for Max Flow", font_size=MAIN_TITLE_FONT_SIZE)
         self.main_title.move_to(TOP_CENTER_ANCHOR).set_z_index(10)
-        self.add(self.main_title) # Add main_title to scene here
+        self.add(self.main_title) 
 
         self.current_section_title_mobj = Text("", font_size=SECTION_TITLE_FONT_SIZE, weight=BOLD).set_z_index(10)
         self.phase_text_mobj = Text("", font_size=PHASE_TEXT_FONT_SIZE, weight=BOLD).set_z_index(10)
@@ -72,13 +72,10 @@ class DinitzAlgorithmVisualizer(Scene):
         self.level_display_vgroup = VGroup().set_z_index(10).to_corner(UR, buff=BUFF_LARGE)
         self.add(self.level_display_vgroup)
 
-    # Reverted to original _animate_text_update and _update_text_generic from your first prompt
     def _animate_text_update(self, old_mobj, new_mobj, new_text_content_str):
         old_text_had_actual_content = isinstance(old_mobj, Text) and old_mobj.text != ""
         out_animation, in_animation = None, None
-        # old_mobj is removed from its group before this, so FadeOut acts on a detached mobject
         if old_text_had_actual_content: out_animation = FadeOut(old_mobj, run_time=0.35)
-        # new_mobj is already in its group and positioned, FadeIn makes it appear there
         if new_text_content_str != "": in_animation = FadeIn(new_mobj, run_time=0.35, shift=ORIGIN)
         animations = [anim for anim in [out_animation, in_animation] if anim]
         if animations: self.play(*animations)
@@ -87,51 +84,35 @@ class DinitzAlgorithmVisualizer(Scene):
         old_mobj = getattr(self, text_attr_name)
         new_mobj = Text(new_text_str, font_size=font_size, weight=weight, color=color)
 
-        # Initial placement for new_mobj before group arrangement (mostly for animation benefit)
         if old_mobj in self.info_texts_group.submobjects:
             new_mobj.move_to(old_mobj.get_center())
 
-        # Replace mobject in self.info_texts_group
         try:
             idx = self.info_texts_group.submobjects.index(old_mobj)
             self.info_texts_group.remove(old_mobj)
             self.info_texts_group.insert(idx, new_mobj)
-        except ValueError: # old_mobj was not in info_texts_group (e.g., a standalone mobject)
-            if old_mobj in self.mobjects: # If it was standalone and on scene, remove it
+        except ValueError: 
+            if old_mobj in self.mobjects: 
                 self.remove(old_mobj)
-            # new_mobj, if standalone, will be handled by add/remove logic below for non-animated case
 
         setattr(self, text_attr_name, new_mobj)
-
-        # Crucially, re-arrange and re-position the info_texts_group
         self.info_texts_group.arrange(DOWN, center=True, buff=BUFF_MED).next_to(self.main_title, DOWN, buff=BUFF_MED)
-        # Ensure new mobject has same z_index as old (or a default if old_mobj was placeholder)
         new_mobj.set_z_index(old_mobj.z_index if hasattr(old_mobj, 'z_index') and old_mobj.z_index is not None else 10)
-
 
         if play_anim:
             self._animate_text_update(old_mobj, new_mobj, new_text_str)
         else:
-            # For non-animated updates:
-            # If new_mobj is part of self.info_texts_group, its display is handled by the group
-            # (which is already on scene and has been rearranged). No explicit self.add(new_mobj) needed.
-            # If old_mobj was part of the group, it's now removed from it.
-            # If new_mobj is intended to be standalone (not part of the group):
             is_new_mobj_in_group = False
             try:
-                # Check if new_mobj is currently in the group after insertion attempt
                 self.info_texts_group.submobjects.index(new_mobj)
                 is_new_mobj_in_group = True
             except ValueError:
                 is_new_mobj_in_group = False
-
             if not is_new_mobj_in_group:
-                # This logic applies if _update_text_generic is used for standalone mobjects.
-                # For section/phase/status texts, is_new_mobj_in_group will be true.
                 if new_text_str != "" and new_mobj not in self.mobjects:
-                    self.add(new_mobj) # Add new standalone mobject if it has text and isn't on scene
-                elif new_text_str == "" and new_mobj in self.mobjects: # Should be old_mobj if it was standalone and now empty
-                    self.remove(new_mobj) # Or remove old_mobj if it was standalone and new_text_str is ""
+                    self.add(new_mobj) 
+                elif new_text_str == "" and new_mobj in self.mobjects: 
+                    self.remove(new_mobj)
 
 
     def update_section_title(self, text_str, play_anim=True):
@@ -144,11 +125,9 @@ class DinitzAlgorithmVisualizer(Scene):
         self._update_text_generic("algo_status_mobj", text_str, STATUS_TEXT_FONT_SIZE, NORMAL, color, play_anim)
 
     def update_max_flow_display(self, play_anim=True):
-        # Changed "Current Max Flow" to "Sink's value of flow"
         new_text_str = f"Sink's value of flow: {self.max_flow_value:.1f}"
         self._update_text_generic("max_flow_display_mobj", new_text_str, MAX_FLOW_DISPLAY_FONT_SIZE, BOLD, GREEN_C, play_anim)
 
-    # ... (DFS and path augmentation methods remain the same as your last version) ...
     def _dfs_recursive_find_path_anim(self, u, pushed, current_path_info_list):
         u_dot_group = self.node_mobjects[u]
         u_dot = u_dot_group[0]
@@ -269,9 +248,11 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.update_status_text("No more s-t paths in LG. Blocking flow for this phase is complete.", color=YELLOW_C, play_anim=True)
                 self.wait(3.5)
                 break
-
-            total_flow_this_phase += bottleneck_flow
             
+            # Increment total flow for this phase and the overall max flow
+            self.max_flow_value += bottleneck_flow      # Update global max flow
+            total_flow_this_phase += bottleneck_flow  # Accumulate for phase summary
+
             bottleneck_indicator_anims = []
             bottleneck_edges_for_indication = []
             current_path_anim_info.reverse() 
@@ -396,8 +377,11 @@ class DinitzAlgorithmVisualizer(Scene):
 
             if text_update_anims or augmentation_anims:
                  self.play(AnimationGroup(*(text_update_anims + augmentation_anims), lag_ratio=0.1), run_time=1.5)
-            else: self.wait(0.1)
-            self.wait(0.5)
+            else: self.wait(0.1) # Ensure a pause if no edge animations
+            
+            # Update the "Sink's value of flow" display AFTER path augmentation visuals
+            self.update_max_flow_display(play_anim=True)
+            self.wait(0.5) # Short pause after display update
 
             self.update_status_text(f"Flow augmented. Current phase flow: {total_flow_this_phase:.1f}. Searching next path...", color=WHITE, play_anim=True)
             self.wait(2.5)
@@ -407,22 +391,17 @@ class DinitzAlgorithmVisualizer(Scene):
         return total_flow_this_phase
 
     def construct(self):
-        # self.main_title is created, positioned, and added within setup_titles_and_placeholders
         self.setup_titles_and_placeholders()
-
-        # Animate main title appearance
         self.play(Write(self.main_title), run_time=1)
         self.wait(1.5)
 
-        # Update other texts (now that main_title is fully established and info_texts_group is positioned)
         self.scaled_flow_text_height = None 
-
         self.update_section_title("1. Building the Flow Network", play_anim=False)
         self.update_status_text("Network: Nodes, Edges (Flow / Capacity). Initial flow is 0.", play_anim=False)
         
         self.current_phase_num = 0
         self.max_flow_value = 0
-        self.update_max_flow_display(play_anim=False) # Initial display of "Sink's value of flow: 0.0"
+        self.update_max_flow_display(play_anim=False)
 
         self.source_node, self.sink_node = 1, 10
         self.vertices_data = list(range(1, 11))
@@ -699,7 +678,7 @@ class DinitzAlgorithmVisualizer(Scene):
             if self.levels[self.sink_node] == -1: 
                 self.update_status_text(f"Sink T={self.sink_node} not reached by BFS. No more augmenting paths.", color=RED_C, play_anim=True)
                 self.wait(3.0)
-                self.update_max_flow_display(play_anim=True) # Display final "Sink's value of flow"
+                self.update_max_flow_display(play_anim=True) # Ensure final flow is displayed by this mobject
                 self.update_phase_text(f"End of Dinitz. Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.update_status_text(f"Algorithm Terminates. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
                 self.wait(4.5)
@@ -752,9 +731,11 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.wait(2.0)
                 self.update_status_text("Level Graph isolated. Ready for DFS phase.", color=GREEN_A, play_anim=True); self.wait(2.5)
 
+                # animate_dfs_path_finding_phase now updates self.max_flow_value and its display incrementally
                 flow_this_phase = self.animate_dfs_path_finding_phase() 
-                self.max_flow_value += flow_this_phase
-                self.update_max_flow_display(play_anim=True) # Update "Sink's value of flow" after phase
+                
+                # REMOVED: self.max_flow_value += flow_this_phase (done incrementally inside)
+                # REMOVED: self.update_max_flow_display(play_anim=True) (done incrementally inside)
 
                 self.update_phase_text(f"End of Phase {self.current_phase_num}. Blocking Flow: {flow_this_phase:.1f}. Sink Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.wait(3.5)
@@ -765,10 +746,11 @@ class DinitzAlgorithmVisualizer(Scene):
         self.update_section_title("3. Dinitz Algorithm Summary", play_anim=True)
         self.wait(1.0)
         
-        if self.levels[self.sink_node] != -1: # This case should ideally not be hit if loop broke due to sink not reached
+        if self.levels[self.sink_node] != -1: # This case means the algorithm completed phases until no more blocking flow
             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+        # If loop broke due to sink not reached, status already updated inside loop.
         
-        self.update_max_flow_display(play_anim=False) # Ensure final value is shown with new label
+        # REMOVED: self.update_max_flow_display(play_anim=False) (display should be current)
         self.wait(5.0)
 
         # --- Final Fade Out Logic ---
