@@ -144,7 +144,8 @@ class DinitzAlgorithmVisualizer(Scene):
         self._update_text_generic("algo_status_mobj", text_str, STATUS_TEXT_FONT_SIZE, NORMAL, color, play_anim)
 
     def update_max_flow_display(self, play_anim=True):
-        new_text_str = f"Current Max Flow: {self.max_flow_value:.1f}"
+        # Changed "Current Max Flow" to "Sink's value of flow"
+        new_text_str = f"Sink's value of flow: {self.max_flow_value:.1f}"
         self._update_text_generic("max_flow_display_mobj", new_text_str, MAX_FLOW_DISPLAY_FONT_SIZE, BOLD, GREEN_C, play_anim)
 
     # ... (DFS and path augmentation methods remain the same as your last version) ...
@@ -421,7 +422,7 @@ class DinitzAlgorithmVisualizer(Scene):
         
         self.current_phase_num = 0
         self.max_flow_value = 0
-        self.update_max_flow_display(play_anim=False)
+        self.update_max_flow_display(play_anim=False) # Initial display of "Sink's value of flow: 0.0"
 
         self.source_node, self.sink_node = 1, 10
         self.vertices_data = list(range(1, 11))
@@ -698,7 +699,7 @@ class DinitzAlgorithmVisualizer(Scene):
             if self.levels[self.sink_node] == -1: 
                 self.update_status_text(f"Sink T={self.sink_node} not reached by BFS. No more augmenting paths.", color=RED_C, play_anim=True)
                 self.wait(3.0)
-                self.update_max_flow_display(play_anim=True) 
+                self.update_max_flow_display(play_anim=True) # Display final "Sink's value of flow"
                 self.update_phase_text(f"End of Dinitz. Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.update_status_text(f"Algorithm Terminates. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
                 self.wait(4.5)
@@ -753,9 +754,9 @@ class DinitzAlgorithmVisualizer(Scene):
 
                 flow_this_phase = self.animate_dfs_path_finding_phase() 
                 self.max_flow_value += flow_this_phase
-                self.update_max_flow_display(play_anim=True) 
+                self.update_max_flow_display(play_anim=True) # Update "Sink's value of flow" after phase
 
-                self.update_phase_text(f"End of Phase {self.current_phase_num}. Blocking Flow: {flow_this_phase:.1f}. Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
+                self.update_phase_text(f"End of Phase {self.current_phase_num}. Blocking Flow: {flow_this_phase:.1f}. Sink Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.wait(3.5)
                 if self.levels[self.sink_node] != -1 :
                      self.update_status_text(f"Phase complete. Preparing for next phase.", color=BLUE_A, play_anim=True) 
@@ -764,10 +765,10 @@ class DinitzAlgorithmVisualizer(Scene):
         self.update_section_title("3. Dinitz Algorithm Summary", play_anim=True)
         self.wait(1.0)
         
-        if self.levels[self.sink_node] != -1: 
+        if self.levels[self.sink_node] != -1: # This case should ideally not be hit if loop broke due to sink not reached
             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
         
-        self.update_max_flow_display(play_anim=False) 
+        self.update_max_flow_display(play_anim=False) # Ensure final value is shown with new label
         self.wait(5.0)
 
         # --- Final Fade Out Logic ---
