@@ -10,8 +10,8 @@ ARROW_TIP_LENGTH = 0.18
 
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
-PHASE_TEXT_FONT_SIZE = 22    # For text below section title
-STATUS_TEXT_FONT_SIZE = 20   # For text below phase title
+PHASE_TEXT_FONT_SIZE = 22     # For text below section title
+STATUS_TEXT_FONT_SIZE = 20    # For text below phase title
 NODE_LABEL_FONT_SIZE = 16
 EDGE_CAPACITY_LABEL_FONT_SIZE = 12 # Used for original edges
 EDGE_FLOW_PREFIX_FONT_SIZE = 12    # Used for original edges & pure reverse residual
@@ -108,7 +108,7 @@ class DinitzAlgorithmVisualizer(Scene):
             # Attempt to scale LaTeX to match font_size approximately
             ref_text_for_height = Text("Mg", font_size=font_size) # Reference for typical cap height
             if ref_text_for_height.height > 0.001 and new_mobj.height > 0.001: # Avoid division by zero
-                 new_mobj.scale_to_fit_height(ref_text_for_height.height)
+                new_mobj.scale_to_fit_height(ref_text_for_height.height)
         else:
             new_mobj = Text(new_text_content, font_size=font_size, weight=weight, color=color)
 
@@ -251,7 +251,7 @@ class DinitzAlgorithmVisualizer(Scene):
         # Iterate over neighbors using self.ptr[u] to handle visited edges from this node in current DFS
         while self.ptr[u] < len(self.adj[u]): # adj[u] should be LG neighbors
             v_candidate = self.adj[u][self.ptr[u]] # This adj might be the original graph's adj
-                                               # Need to filter for LG edges
+                                                   # Need to filter for LG edges
             edge_key_uv = (u, v_candidate)
 
             # Check if this edge is in the Level Graph
@@ -320,10 +320,10 @@ class DinitzAlgorithmVisualizer(Scene):
                     if edge_key_uv not in self.original_edge_tuples:
                         label_mobj = self.edge_residual_capacity_mobjects.get(edge_key_uv)
                         if label_mobj:
-                             target_label_revert = Text(f"{current_res_cap_after_fail:.0f}", font=label_mobj.font, font_size=label_mobj.font_size, color=lg_color)
-                             target_label_revert.move_to(label_mobj.get_center()).set_opacity(1.0)
-                             if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label_revert.height = self.scaled_flow_text_height * 0.9
-                             current_anims_backtrack_restore.append(label_mobj.animate.become(target_label_revert))
+                            target_label_revert = Text(f"{current_res_cap_after_fail:.0f}", font=label_mobj.font, font_size=label_mobj.font_size, color=lg_color)
+                            target_label_revert.move_to(label_mobj.get_center()).set_opacity(1.0)
+                            if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label_revert.height = self.scaled_flow_text_height * 0.9
+                            current_anims_backtrack_restore.append(label_mobj.animate.become(target_label_revert))
                 else: # Not a valid LG edge anymore (e.g. capacity became 0 due to another path)
                     current_anims_backtrack_restore.append(
                         edge_mo_for_v.animate.set_color(DIMMED_COLOR).set_stroke(width=EDGE_STROKE_WIDTH, opacity=DIMMED_OPACITY)
@@ -440,7 +440,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 # Update appearance of edge (u,v)
                 res_cap_after_uv = self.capacities.get((u,v),0) - self.flow.get((u,v),0)
                 is_still_lg_edge_uv = (self.levels.get(u,-1)!=-1 and self.levels.get(v,-1)!=-1 and \
-                                    self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 )
+                                       self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 )
 
                 if not is_still_lg_edge_uv: # Edge (u,v) is no longer in LG (saturated or path changed levels)
                     augmentation_anims.append(edge_mo.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR, width=EDGE_STROKE_WIDTH))
@@ -466,7 +466,7 @@ class DinitzAlgorithmVisualizer(Scene):
                                                                                        # If c(v,u) = 0 (original graph), then res_cap_vu = f(u,v)
 
                     is_rev_edge_in_lg_vu = (self.levels.get(v,-1)!=-1 and self.levels.get(u,-1)!=-1 and \
-                                         self.levels[u]==self.levels[v]+1 and res_cap_vu > 0) # Check if (v,u) is now in LG
+                                            self.levels[u]==self.levels[v]+1 and res_cap_vu > 0) # Check if (v,u) is now in LG
 
                     if is_rev_edge_in_lg_vu: # Reverse edge (v,u) becomes part of LG
                         lg_color_vu = LEVEL_COLORS[self.levels[v]%len(LEVEL_COLORS)]
@@ -545,7 +545,7 @@ class DinitzAlgorithmVisualizer(Scene):
     def construct(self):
         self.setup_titles_and_placeholders()
         if self.sink_action_text_mobj not in self.mobjects: # Ensure it's added initially
-             self.add(self.sink_action_text_mobj)
+            self.add(self.sink_action_text_mobj)
 
         self.play(Write(self.main_title), run_time=1)
         self.wait(1.5)
@@ -663,6 +663,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     self.base_label_visual_attrs[current_edge_tuple] = {"opacity": 0.0} # Default for pure reverse labels
 
                     pure_rev_label_group = VGroup(res_cap_val_mobj) # Group for scaling
+                    pure_rev_label_group.set_opacity(0.0)
                     self.edge_label_groups[current_edge_tuple] = pure_rev_label_group
                     all_edge_labels_vgroup.add(pure_rev_label_group)
 
@@ -1048,8 +1049,8 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.update_phase_text(f"End of Phase {self.current_phase_num}. Blocking Flow: {flow_this_phase:.1f}. Sink Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.wait(3.5) # Time to read end of phase summary
                 if self.levels.get(self.sink_node, -1) != -1 : # If sink was reachable (i.e., algo not terminated)
-                     self.update_status_text(f"Phase complete. Preparing for next phase.", color=BLUE_A, play_anim=True)
-                     self.wait(3.0) # Pause before starting next phase or terminating
+                    self.update_status_text(f"Phase complete. Preparing for next phase.", color=BLUE_A, play_anim=True)
+                    self.wait(3.0) # Pause before starting next phase or terminating
 
         # Dinitz algorithm loop has finished (either sink unreachable or break)
         self.update_section_title("3. Dinitz Algorithm Summary", play_anim=True)
@@ -1057,9 +1058,9 @@ class DinitzAlgorithmVisualizer(Scene):
 
         # Final status message
         if self.levels.get(self.sink_node, -1) == -1 : # Check the condition that caused termination
-             self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
         else: # Should only happen if loop broke for other reasons, but typically means sink was found in last phase.
-             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
 
         self.wait(5.0) # Long pause to see final state
 
