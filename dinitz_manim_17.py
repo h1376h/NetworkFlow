@@ -583,7 +583,7 @@ class DinitzAlgorithmVisualizer(Scene):
 
             label_group = VGroup(flow_val_mobj, slash_mobj, cap_text_mobj).arrange(RIGHT, buff=BUFF_VERY_SMALL)
             label_group.move_to(arrow.get_center()).rotate(arrow.get_angle())
-            offset_vector = rotate_vector(arrow.get_unit_vector(), PI/2) * 0.25
+            offset_vector = rotate_vector(arrow.get_unit_vector(), PI/2) * 0.15
             label_group.shift(offset_vector).set_z_index(1)
             self.edge_label_groups[(u,v)] = label_group
             all_edge_labels_vgroup.add(label_group)
@@ -606,7 +606,7 @@ class DinitzAlgorithmVisualizer(Scene):
 
                     res_cap_val_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR, opacity=0.0)
                     res_cap_val_mobj.move_to(rev_arrow.get_center()).rotate(rev_arrow.get_angle())
-                    offset_vector_rev = rotate_vector(rev_arrow.get_unit_vector(), PI / 2) * 0.25
+                    offset_vector_rev = rotate_vector(rev_arrow.get_unit_vector(), PI / 2) * 0.15
                     res_cap_val_mobj.shift(offset_vector_rev).set_z_index(1)
 
                     self.edge_residual_capacity_mobjects[current_edge_tuple] = res_cap_val_mobj
