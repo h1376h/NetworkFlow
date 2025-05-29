@@ -342,7 +342,7 @@ class DinitzAlgorithmVisualizer(Scene):
             total_flow_this_phase += bottleneck_flow
             
             bottleneck_edges_for_indication = []
-            current_path_anim_info.reverse() 
+            current_path_anim_info.reverse() # Path is now S -> T
 
             for (u_path, v_path), edge_mo_path, _, _, _ in current_path_anim_info:
                 edge_key = (u_path, v_path)
@@ -364,14 +364,53 @@ class DinitzAlgorithmVisualizer(Scene):
 
             self.update_status_text(f"Path #{path_count_this_phase} found. Bottleneck: {bottleneck_flow:.1f}. Augmenting...", color=GREEN_A, play_anim=True)
             self._update_sink_action_text("augment", new_color=GREEN_B, animate=True) 
-            self.wait(2.5)
+            self.wait(2.5) # Original wait time
             
-            path_highlight_anims = []
-            for (u_path, v_path), edge_mo_path, _, _, _ in current_path_anim_info: 
-                path_highlight_anims.append(edge_mo_path.animate.set_color(GREEN_D).set_stroke(width=DFS_PATH_EDGE_WIDTH, opacity=1.0))
+            path_highlight_anims_group = []
+            path_edges_for_flow_animation = [] # Store copies for the flow pulse
 
-            if path_highlight_anims: self.play(AnimationGroup(*path_highlight_anims, lag_ratio=0.15, run_time=1.0))
-            self.wait(2.0) 
+            for (u_edge, v_edge), edge_mobject, _, _, _ in current_path_anim_info:
+                # Animate the path itself turning green
+                path_highlight_anims_group.append(
+                    edge_mobject.animate.set_color(GREEN_D).set_stroke(width=DFS_PATH_EDGE_WIDTH, opacity=1.0)
+                )
+                # Prepare copies for the flow pulse animation
+                flash_edge_copy = edge_mobject.copy()
+                flash_edge_copy.set_color(BLUE_B) # Bright color for the flash (e.g., 3b1b blue)
+                flash_edge_copy.set_stroke(width=edge_mobject.stroke_width * 1.8) # Thicker pulse
+                flash_edge_copy.set_z_index(edge_mobject.z_index + 10) # Ensure pulse is on top
+                path_edges_for_flow_animation.append(flash_edge_copy)
+
+
+            if path_highlight_anims_group:
+                self.play(AnimationGroup(*path_highlight_anims_group, lag_ratio=0.15, run_time=1.0))
+            self.wait(1.0) # Wait after path highlights green
+
+
+            # --- 3BLUE1BROWN STYLE FLOW ANIMATION ---
+            flow_pulse_sequence = []
+            # time_width defines the proportion of the edge's length that is lit up by the flash at any moment.
+            # A smaller value (e.g., 0.2-0.4) gives a shorter, more pulse-like flash.
+            flash_time_width = 0.35 
+            # run_time for the flash to traverse a single edge.
+            single_edge_flash_runtime = 0.6
+
+            for edge_copy_for_flash in path_edges_for_flow_animation:
+                # ShowPassingFlash animates the stroke of the provided mobject.
+                # The mobject (edge_copy_for_flash) should already have its desired flash appearance (color, width).
+                animation = ShowPassingFlash(
+                    edge_copy_for_flash, # The mobject whose stroke is animated
+                    time_width=flash_time_width,
+                    run_time=single_edge_flash_runtime
+                )
+                flow_pulse_sequence.append(animation)
+            
+            if flow_pulse_sequence:
+                # Play flashes sequentially for each edge in the path.
+                # lag_ratio=1.0 for Succession means the next animation starts exactly when the previous one ends.
+                self.play(Succession(*flow_pulse_sequence, lag_ratio=1.0))
+                self.wait(0.5) # Pause after the entire flow pulse animation sequence
+            # --- END OF 3BLUE1BROWN STYLE FLOW ANIMATION ---
             
             augmentation_anims = []
             text_update_anims = [] 
