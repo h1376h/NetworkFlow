@@ -79,18 +79,13 @@ class DinitzAlgorithmVisualizer(Scene):
 
         anims_to_play = []
         if old_text_had_actual_content:
-            # old_mobj is the Mobject instance that was displayed.
-            # FadeOut will handle it even if it was removed from its parent VGroup by _update_text_generic,
-            # by temporarily adding it to the scene for the animation.
             anims_to_play.append(FadeOut(old_mobj, scale=0.8, run_time=0.25))
             
         if new_text_has_actual_content:
-            # new_mobj is the new Mobject, already positioned by _update_text_generic.
-            # FadeIn with scale will make it "pop" in.
             anims_to_play.append(FadeIn(new_mobj, scale=1.2, run_time=0.25))
 
         if anims_to_play:
-            self.play(*anims_to_play) # Plays animations concurrently if multiple are present
+            self.play(*anims_to_play)
 
 
     def _update_text_generic(self, text_attr_name, new_text_content, font_size, weight, color, play_anim=True, is_latex=False):
@@ -98,9 +93,8 @@ class DinitzAlgorithmVisualizer(Scene):
 
         if is_latex:
             new_mobj = Tex(new_text_content, color=color)
-            # Attempt to scale LaTeX to match font_size approximately
-            ref_text_for_height = Text("Mg", font_size=font_size) # Reference for typical cap height
-            if ref_text_for_height.height > 0.001 and new_mobj.height > 0.001: # Avoid division by zero
+            ref_text_for_height = Text("Mg", font_size=font_size)
+            if ref_text_for_height.height > 0.001 and new_mobj.height > 0.001:
                 new_mobj.scale_to_fit_height(ref_text_for_height.height)
         else:
             new_mobj = Text(new_text_content, font_size=font_size, weight=weight, color=color)
@@ -109,36 +103,31 @@ class DinitzAlgorithmVisualizer(Scene):
         current_idx = -1
         if old_mobj in self.info_texts_group.submobjects:
             current_idx = self.info_texts_group.submobjects.index(old_mobj)
-            new_mobj.move_to(old_mobj.get_center()) # Keep position before group re-arrangement
+            new_mobj.move_to(old_mobj.get_center())
             self.info_texts_group.remove(old_mobj)
 
 
-        if old_mobj in self.mobjects : # General removal from scene if it was added directly
+        if old_mobj in self.mobjects :
             self.remove(old_mobj)
 
-        if current_idx != -1 : # Re-insert into the VGroup at the same position
+        if current_idx != -1 :
             self.info_texts_group.insert(current_idx, new_mobj)
 
-        setattr(self, text_attr_name, new_mobj) # Update the class attribute
-        self.info_texts_group.arrange(DOWN, center=True, buff=BUFF_MED).next_to(self.main_title, DOWN, buff=BUFF_MED) # Rearrange the VGroup
+        setattr(self, text_attr_name, new_mobj)
+        self.info_texts_group.arrange(DOWN, center=True, buff=BUFF_MED).next_to(self.main_title, DOWN, buff=BUFF_MED)
         new_mobj.set_z_index(old_mobj.z_index if hasattr(old_mobj, 'z_index') and old_mobj.z_index is not None else 10)
 
 
         if play_anim:
             self._animate_text_update(old_mobj, new_mobj, new_text_content)
         else:
-            # If not animating, ensure the new mobject is added if it has content and isn't already part of info_texts_group
-            # And ensure old one is removed. The removal of old_mobj is handled above.
             is_empty_new_content = (isinstance(new_mobj, Text) and new_mobj.text == "") or \
                                    (isinstance(new_mobj, Tex) and new_mobj.tex_string == "")
             is_in_group = new_mobj in self.info_texts_group.submobjects
 
             if is_empty_new_content:
-                # Empty texts are handled by the general logic; if they are in the group, they stay.
-                # If not in group and on scene, self.remove(old_mobj) already handled it.
-                # If new_mobj is empty and not in group, it won't be added here.
                 pass
-            else: # Has content
+            else: 
                 if not is_in_group and new_mobj not in self.mobjects:
                     self.add(new_mobj)
 
@@ -162,41 +151,38 @@ class DinitzAlgorithmVisualizer(Scene):
         old_color_val = current_mobj.get_color()
 
         if old_text_content == new_text_content and old_color_val == new_color:
-            return # No change needed
+            return
 
         target_text_template = Text(
             new_text_content,
-            font_size=STATUS_TEXT_FONT_SIZE, # Use the same font size as algo_status for consistency
-            weight=current_mobj.weight, # Use current weight, e.g., BOLD
+            font_size=STATUS_TEXT_FONT_SIZE,
+            weight=current_mobj.weight,
             color=new_color
         )
 
-        # --- Positioning block (MODIFICATION START by user, kept) ---
-        # Position the target_text_template relative to the SOURCE node.
         if hasattr(self, 'node_mobjects') and \
            hasattr(self, 'source_node') and \
            self.source_node in self.node_mobjects and \
            self.node_mobjects.get(self.source_node) is not None:
             source_node_group = self.node_mobjects[self.source_node]
             if isinstance(source_node_group, VGroup) and len(source_node_group.submobjects) > 0:
-                source_node_dot = source_node_group[0] # Assuming the first element is the Dot
+                source_node_dot = source_node_group[0]
                 target_text_template.next_to(source_node_dot, UP, buff=BUFF_SMALL)
-            else: # Should not happen if source_node_group is valid
-                target_text_template.move_to(current_mobj.get_center()) # Fallback
-        else: # Fallback if source node isn't ready/available
+            else: 
+                target_text_template.move_to(current_mobj.get_center())
+        else: 
             target_text_template.move_to(current_mobj.get_center())
         
         target_text_template.set_z_index(current_mobj.z_index)
-        # --- Positioning block END ---
 
         if animate:
-            if old_text_content and not new_text_content: # Fading out (e.g. "retreat" to "")
-                self.play(FadeOut(current_mobj, run_time=0.25, scale=0.8)) # Added scale
-                current_mobj.become(target_text_template) # Update the mobject's content even if it's now empty
-            elif not old_text_content and new_text_content: # Fading in (e.g. "" to "augment")
+            if old_text_content and not new_text_content: 
+                self.play(FadeOut(current_mobj, run_time=0.25, scale=0.8))
                 current_mobj.become(target_text_template)
-                self.play(FadeIn(current_mobj, run_time=0.25, scale=1.2)) # Added scale
-            elif old_text_content and new_text_content: # Changing text (both non-empty)
+            elif not old_text_content and new_text_content: 
+                current_mobj.become(target_text_template)
+                self.play(FadeIn(current_mobj, run_time=0.25, scale=1.2))
+            elif old_text_content and new_text_content: 
                 old_mobj_anim_copy = current_mobj.copy() 
                 current_mobj.become(target_text_template) 
                 
@@ -204,11 +190,11 @@ class DinitzAlgorithmVisualizer(Scene):
                     FadeOut(old_mobj_anim_copy, run_time=0.20, scale=0.8),
                     FadeIn(current_mobj, run_time=0.20, scale=1.2) 
                 )
-            elif new_text_content and old_text_content == new_text_content and old_color_val != new_color: # Only color change
+            elif new_text_content and old_text_content == new_text_content and old_color_val != new_color:
                 self.play(current_mobj.animate.set_color(new_color), run_time=0.3)
-            elif not new_text_content and not old_text_content and old_color_val != new_color: # Color change for empty text
+            elif not new_text_content and not old_text_content and old_color_val != new_color:
                 current_mobj.set_color(new_color) 
-        else: # Not animated
+        else: 
             current_mobj.become(target_text_template) 
             if current_mobj not in self.mobjects: 
                 self.add(current_mobj)
@@ -227,7 +213,7 @@ class DinitzAlgorithmVisualizer(Scene):
 
         if u == self.sink_node:
             self.update_status_text(f"DFS Path to Sink T (Node {self.sink_node}) found!", color=GREEN_B, play_anim=False)
-            self._update_sink_action_text("advance", new_color=BLUE_A, animate=True) # Text will be above source
+            self._update_sink_action_text("advance", new_color=BLUE_A, animate=True)
             self.wait(2.0)
             self.play(FadeOut(highlight_ring), run_time=0.15)
             if highlight_ring in self.dfs_traversal_highlights: self.dfs_traversal_highlights.remove(highlight_ring)
@@ -312,7 +298,7 @@ class DinitzAlgorithmVisualizer(Scene):
 
 
                 if current_anims_backtrack_restore: self.play(*current_anims_backtrack_restore, run_time=0.4)
-                self.play(Indicate(edge_mo_for_v, color=RED_D, scale_factor=1.1, run_time=0.45)) # Changed scale_factor
+                self.play(Indicate(edge_mo_for_v, color=RED_D, scale_factor=1.1, run_time=0.45))
                 self.wait(0.5)
                 self.update_status_text(f"DFS Advance: From {u_display_name}, exploring next valid LG edge.", play_anim=False) 
                 self.wait(1.0)
@@ -967,7 +953,52 @@ class DinitzAlgorithmVisualizer(Scene):
         else: 
             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
 
-        self.wait(5.0) 
+        self.wait(5.0)
+
+
+        # --- Final Emphasis Flash Animation ---
+        if hasattr(self, 'node_mobjects') and self.node_mobjects and \
+           hasattr(self, 'source_node') and hasattr(self, 'sink_node') and \
+           self.source_node in self.node_mobjects and self.sink_node in self.node_mobjects:
+
+            source_dot = self.node_mobjects[self.source_node][0]
+            sink_dot = self.node_mobjects[self.sink_node][0]
+
+            other_node_dots = []
+            for node_id in self.vertices_data: # Assuming self.vertices_data holds all relevant node IDs
+                if node_id in self.node_mobjects: # Ensure mobject exists for this ID
+                    if node_id != self.source_node and node_id != self.sink_node:
+                        other_node_dots.append(self.node_mobjects[node_id][0])
+            
+            anims_for_final_emphasis = []
+
+            # Flashes for other nodes
+            # These are added first to the list, but all animations in a single self.play() run concurrently
+            # unless explicitly sequenced with LaggedStart or AnimationGroup with delays.
+            anims_for_final_emphasis.extend(
+                [
+                    Flash(dot, color=BLUE_A, flash_radius=NODE_RADIUS * 2.0) # Using relative flash_radius
+                    for dot in other_node_dots
+                ]
+            )
+            
+            # Flashes for source and sink nodes (more prominent radius and distinct colors)
+            # Added to the list; will play concurrently with the others.
+            # Their prominence comes from visual distinction.
+            anims_for_final_emphasis.append(
+                Flash(source_dot, color=GOLD_D, flash_radius=NODE_RADIUS * 3.0) 
+            )
+            anims_for_final_emphasis.append(
+                Flash(sink_dot, color=RED_C, flash_radius=NODE_RADIUS * 3.0)
+            )
+            
+            if anims_for_final_emphasis:
+                self.play(
+                    *anims_for_final_emphasis,
+                    run_time=2.0 
+                )
+        # --- End of Final Emphasis Flash Animation ---
+
 
         mobjects_that_should_remain_on_screen = Group(
             self.main_title,
