@@ -10,8 +10,8 @@ ARROW_TIP_LENGTH = 0.16
 
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
-PHASE_TEXT_FONT_SIZE = 22    # For text below section title
-STATUS_TEXT_FONT_SIZE = 20   # For text below phase title
+PHASE_TEXT_FONT_SIZE = 22     # For text below section title
+STATUS_TEXT_FONT_SIZE = 20    # For text below phase title
 NODE_LABEL_FONT_SIZE = 16
 EDGE_CAPACITY_LABEL_FONT_SIZE = 12 # Used for original edges
 EDGE_FLOW_PREFIX_FONT_SIZE = 12    # Used for original edges & pure reverse residual
@@ -49,10 +49,10 @@ REVERSE_EDGE_Z_INDEX = -1
 # Flow pulse animation constants
 FLOW_PULSE_COLOR = BLUE_B
 FLOW_PULSE_WIDTH_FACTOR = 1.8
-FLOW_PULSE_TIME_WIDTH = 0.35  # Proportion of edge length lit up by flash
+FLOW_PULSE_TIME_WIDTH = 0.35   # Proportion of edge length lit up by flash
 FLOW_PULSE_EDGE_RUNTIME = 0.5 # Time for pulse to traverse one edge
 FLOW_PULSE_Z_INDEX_OFFSET = 10
-EDGE_UPDATE_RUNTIME = 0.3     # Time for text/visual updates after pulse on an edge
+EDGE_UPDATE_RUNTIME = 0.3      # Time for text/visual updates after pulse on an edge
 
 class DinitzAlgorithmVisualizer(Scene):
 
@@ -579,29 +579,42 @@ class DinitzAlgorithmVisualizer(Scene):
         self.current_phase_num = 0
         self.max_flow_value = 0
 
-        # Define graph structure (nodes, edges, capacities)
-        self.source_node, self.sink_node = 1, 10
-        self.vertices_data = list(range(1, 11)) 
+        # --- Graph Definition for the image provided ---
+        self.source_node, self.sink_node = 0, 5 
+        self.vertices_data = [0, 1, 2, 3, 4, 5] 
+
         self.edges_with_capacity_list = [
-            (1,2,25),(1,3,30),(1,4,20),(2,5,25),(3,4,30),(3,5,35),(4,6,30),
-            (5,7,40),(5,8,40),(6,8,35),(6,9,30),(7,10,20),(8,10,20),(9,10,20)
+            (0, 1, 10), (0, 2, 10),  # s -> 1, s -> 2
+            (1, 2, 2),               # 1 -> 2
+            (1, 3, 4),               # 1 -> 3
+            (1, 4, 8),               # 1 -> 4
+            (2, 4, 9),               # 2 -> 4
+            (3, 5, 10),               # 3 -> t (5)
+            (4, 3, 6),               # 4 -> 3
+            (4, 5, 10)               # 4 -> t (5)
         ]
         self.original_edge_tuples = set([(u,v) for u,v,c in self.edges_with_capacity_list])
 
-        self.capacities = collections.defaultdict(int) # Stores (u,v) -> capacity
-        self.flow = collections.defaultdict(int)       # Stores (u,v) -> flow
-        self.adj = collections.defaultdict(list)       # Adjacency list for graph traversal
+        self.capacities = collections.defaultdict(int)
+        self.flow = collections.defaultdict(int)    
+        self.adj = collections.defaultdict(list)      
 
         for u,v,cap in self.edges_with_capacity_list:
             self.capacities[(u,v)] = cap
             if v not in self.adj[u]: self.adj[u].append(v)
-            if u not in self.adj[v]: self.adj[v].append(u) # For finding all neighbors (BFS/DFS structure)
+            if u not in self.adj[v]: self.adj[v].append(u) # For finding all neighbors
 
         # Define layout for nodes
         self.graph_layout = { 
-            1: [-4,0,0], 2:[-2,1,0], 3:[-2,0,0], 4:[-2,-1,0], 5:[-0.5,0.75,0], 6:[-0.5,-0.75,0],
-            7: [1,1,0], 8:[1,0,0], 9:[1,-1,0], 10:[2.5,0,0]
+            0: [-5, 0, 0],      # Node s
+            1: [-2.5, 1.5, 0],  # Node 1
+            2: [-2.5, -1.5, 0], # Node 2
+            3: [2.5, 1.5, 0],   # Node 3
+            4: [2.5, -1.5, 0],  # Node 4
+            5: [5, 0, 0]        # Node t
         }
+        # --- End of Graph Definition for the image ---
+
 
         # Dictionaries to store mobjects for nodes, edges, and labels
         self.node_mobjects = {}; self.edge_mobjects = {};
@@ -611,13 +624,13 @@ class DinitzAlgorithmVisualizer(Scene):
         self.base_label_visual_attrs = {} # Stores original opacity for labels
         self.edge_residual_capacity_mobjects = {} # For non-original edges' capacity labels
 
-        self.desired_large_scale = 1.6 # Scale factor for the main graph display
+        self.desired_large_scale = 1.1 # Adjusted scale for the new graph
 
         # Create and animate node mobjects (dots and labels)
         nodes_vgroup = VGroup()
         for v_id in self.vertices_data:
             dot = Dot(point=self.graph_layout[v_id], radius=NODE_RADIUS, color=DEFAULT_NODE_COLOR, z_index=2, stroke_color=BLACK, stroke_width=NODE_STROKE_WIDTH)
-            label_str = "s" if v_id == self.source_node else "t" if v_id == self.sink_node else str(v_id)
+            # Initial label text is the number (v_id). 's' and 't' are applied later.
             label = Text(str(v_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD).move_to(dot.get_center()).set_z_index(3)
             self.node_mobjects[v_id] = VGroup(dot,label); nodes_vgroup.add(self.node_mobjects[v_id])
         self.play(LaggedStart(*[GrowFromCenter(self.node_mobjects[vid]) for vid in self.vertices_data], lag_ratio=0.05), run_time=1.5)
@@ -830,7 +843,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 if v_id != self.source_node and v_id != self.sink_node: # Regular nodes
                      restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
                 elif v_id == self.source_node or v_id == self.sink_node: # s and t labels
-                    restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
+                     restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
 
             for edge_key, edge_mo in self.edge_mobjects.items(): # Edges
                 edge_attrs = self.base_edge_visual_attrs[edge_key]
@@ -1007,7 +1020,7 @@ class DinitzAlgorithmVisualizer(Scene):
         self.update_section_title("3. Dinitz Algorithm Summary", play_anim=True)
         self.wait(1.0)
         if self.levels.get(self.sink_node, -1) == -1 and self.max_flow_value == 0 : # Handles case where s and t are disconnected from start
-             self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Max Flow: {self.max_flow_value:.1f}", color=RED_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Max Flow: {self.max_flow_value:.1f}", color=RED_A, play_anim=True)
         elif self.levels.get(self.sink_node, -1) == -1 : # Normal termination when sink becomes unreachable
             self.update_status_text(f"Algorithm Concluded. Sink Unreachable in last BFS. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
         else: # Should ideally be caught by the sink unreachable in BFS loop
