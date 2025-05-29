@@ -6,7 +6,7 @@ import numpy as np
 NODE_RADIUS = 0.28
 NODE_STROKE_WIDTH = 1.5
 EDGE_STROKE_WIDTH = 3.5
-ARROW_TIP_LENGTH = 0.22 # Changed from 0.18
+ARROW_TIP_LENGTH = 0.16
 
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
@@ -46,14 +46,11 @@ REVERSE_EDGE_OPACITY = 0.15
 REVERSE_EDGE_STROKE_WIDTH_FACTOR = 0.6
 REVERSE_EDGE_Z_INDEX = -1
 
-TOP_CENTER_ANCHOR = UP * (config.frame_height / 2 - BUFF_SMALL)
-
-
 class DinitzAlgorithmVisualizer(Scene):
 
     def setup_titles_and_placeholders(self):
         self.main_title = Text("Visualizing Dinitz's Algorithm for Max Flow", font_size=MAIN_TITLE_FONT_SIZE)
-        self.main_title.move_to(TOP_CENTER_ANCHOR).set_z_index(10)
+        self.main_title.to_edge(UP, buff=BUFF_LARGE).set_z_index(10)
         self.add(self.main_title)
 
         self.current_section_title_mobj = Text("", font_size=SECTION_TITLE_FONT_SIZE, weight=BOLD).set_z_index(10)
