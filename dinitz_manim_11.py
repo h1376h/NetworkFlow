@@ -10,8 +10,8 @@ ARROW_TIP_LENGTH = 0.16
 
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
-PHASE_TEXT_FONT_SIZE = 22    # For text below section title
-STATUS_TEXT_FONT_SIZE = 20   # For text below phase title
+PHASE_TEXT_FONT_SIZE = 22      # For text below section title
+STATUS_TEXT_FONT_SIZE = 20     # For text below phase title
 NODE_LABEL_FONT_SIZE = 16
 EDGE_CAPACITY_LABEL_FONT_SIZE = 12 # Used for original edges
 EDGE_FLOW_PREFIX_FONT_SIZE = 12    # Used for original edges & pure reverse residual
@@ -52,7 +52,7 @@ FLOW_PULSE_WIDTH_FACTOR = 1.8
 FLOW_PULSE_TIME_WIDTH = 0.35  # Proportion of edge length lit up by flash
 FLOW_PULSE_EDGE_RUNTIME = 0.5 # Time for pulse to traverse one edge
 FLOW_PULSE_Z_INDEX_OFFSET = 10
-EDGE_UPDATE_RUNTIME = 0.3     # Time for text/visual updates after pulse on an edge
+EDGE_UPDATE_RUNTIME = 0.3       # Time for text/visual updates after pulse on an edge
 
 class DinitzAlgorithmVisualizer(Scene):
 
@@ -170,7 +170,7 @@ class DinitzAlgorithmVisualizer(Scene):
             return # No change needed
 
         target_text_template = Text(
-            new_text_content,
+            new_text_content.upper(), # Standardize to uppercase
             font_size=STATUS_TEXT_FONT_SIZE, # Using STATUS_TEXT_FONT_SIZE for consistency
             weight=current_mobj.weight, # Preserve weight
             color=new_color
@@ -215,11 +215,11 @@ class DinitzAlgorithmVisualizer(Scene):
             if current_mobj not in self.mobjects and new_text_content: # Add if it became non-empty and wasn't there
                 self.add(current_mobj)
             elif new_text_content == "" and current_mobj in self.mobjects: # Remove if it became empty and was there
-                 pass # Let it become empty, FadeOut handles removal if animated
+                pass # Let it become empty, FadeOut handles removal if animated
 
-    def _dfs_recursive_find_path_anim(self, u, pushed, current_path_info_list):
-        # Recursive DFS function to find a path in the level graph.
-        # Animates the traversal, highlighting nodes and edges.
+    def _dfs_advance_and_retreat(self, u, pushed, current_path_info_list):
+        # Recursive DFS function to find a path in the level graph, matching ADVANCE/RETREAT logic.
+        # Animates the traversal, highlighting nodes, edges, and "deleting" dead-end nodes.
         # u: current node, pushed: flow pushed so far, current_path_info_list: stores path edges.
         
         u_dot_group = self.node_mobjects[u]
@@ -234,15 +234,15 @@ class DinitzAlgorithmVisualizer(Scene):
 
         u_display_name = "s" if u == self.source_node else "t" if u == self.sink_node else str(u)
 
-        if u == self.sink_node: # Path to sink found
-            self.update_status_text(f"DFS Path to Sink T (Node {self.sink_node}) found!", color=GREEN_B, play_anim=False)
-            self._update_sink_action_text("advance", new_color=BLUE_A, animate=True) # Indicate to user path is found
+        if u == self.sink_node: # Path to sink found (successful ADVANCE to t)
+            self.update_status_text(f"ADVANCE success: Reached Sink T (Node {self.sink_node})!", color=GREEN_B, play_anim=False)
+            self._update_sink_action_text("augment", new_color=GREEN_B, animate=True) 
             self.wait(2.0)
             self.play(FadeOut(highlight_ring), run_time=0.15) # Remove highlight
             if highlight_ring in self.dfs_traversal_highlights: self.dfs_traversal_highlights.remove(highlight_ring)
             return pushed # Return the bottleneck capacity found so far
 
-        self.update_status_text(f"DFS Advance: From {u_display_name}, exploring valid LG edges.", play_anim=False)
+        self.update_status_text(f"ADVANCE: From {u_display_name}, exploring valid LG edges.", play_anim=False)
         self.wait(1.5)
 
         # Iterate through neighbors using the pointer (ptr) for Dinic's optimization
@@ -253,10 +253,11 @@ class DinitzAlgorithmVisualizer(Scene):
             res_cap_cand = self.capacities.get(edge_key_uv, 0) - self.flow.get(edge_key_uv, 0)
             edge_mo_cand = self.edge_mobjects.get(edge_key_uv)
 
-            # Check if this edge is a valid Level Graph edge
+            # Check if this edge is a valid Level Graph edge (and destination is not a dead end)
             is_valid_lg_edge = (edge_mo_cand and
                                 self.levels.get(v_candidate, -1) == self.levels.get(u, -1) + 1 and
-                                res_cap_cand > 0)
+                                res_cap_cand > 0 and
+                                v_candidate not in self.dead_nodes_in_phase) # IMPROVEMENT: Check against dead nodes
 
             if is_valid_lg_edge:
                 actual_v = v_candidate
@@ -281,17 +282,17 @@ class DinitzAlgorithmVisualizer(Scene):
                         if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label.height = self.scaled_flow_text_height * 0.9
                         current_anims_try.append(label_mobj.animate.become(target_label))
 
-                self.update_status_text(f"DFS Try: Edge ({u_display_name},{actual_v_display_name}), Res.Cap: {res_cap_cand:.0f}.", play_anim=False)
+                self.update_status_text(f"ADVANCE: Try edge ({u_display_name} -> {actual_v_display_name}), Res.Cap: {res_cap_cand:.0f}.", play_anim=False)
                 self.wait(1.5) 
                 if current_anims_try: self.play(*current_anims_try, run_time=0.4)
                 self.wait(0.5) 
 
                 # Recursive call for the next node in the path
-                tr = self._dfs_recursive_find_path_anim(actual_v, min(pushed, res_cap_cand), current_path_info_list)
+                tr = self._dfs_advance_and_retreat(actual_v, min(pushed, res_cap_cand), current_path_info_list)
 
                 current_anims_backtrack_restore = []
                 if tr > 0: # Flow was pushed through this edge (it's part of an s-t path)
-                    self.update_status_text(f"DFS Path Segment: ({u_display_name},{actual_v_display_name}) is part of an s-t path.", color=GREEN_C, play_anim=False)
+                    self.update_status_text(f"Path Segment: ({u_display_name} -> {actual_v_display_name}) is part of an augmenting path.", color=GREEN_C, play_anim=False)
                     self.wait(1.5)
                     current_path_info_list.append(((u, actual_v), edge_mo_for_v, original_edge_color, original_edge_width, original_edge_opacity))
                     self.play(FadeOut(highlight_ring), run_time=0.15) 
@@ -299,7 +300,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     return tr # Return flow pushed
 
                 # Backtracking: This edge led to a dead end
-                self.update_status_text(f"DFS Retreat: Edge ({u_display_name},{actual_v_display_name}) is a dead end. Backtracking.", color=YELLOW_C, play_anim=False)
+                self.update_status_text(f"RETREAT: Edge ({u_display_name} -> {actual_v_display_name}) is a dead end. Backtracking.", color=YELLOW_C, play_anim=False)
                 self._update_sink_action_text("retreat", new_color=ORANGE, animate=True) 
                 self.wait(1.5)
                 
@@ -330,15 +331,32 @@ class DinitzAlgorithmVisualizer(Scene):
                 if current_anims_backtrack_restore: self.play(*current_anims_backtrack_restore, run_time=0.4)
                 self.play(Indicate(edge_mo_for_v, color=RED_D, scale_factor=1.1, run_time=0.45)) # Indicate dead end
                 self.wait(0.5)
-                self.update_status_text(f"DFS Advance: From {u_display_name}, exploring next valid LG edge.", play_anim=False) 
+                self.update_status_text(f"ADVANCE: From {u_display_name}, exploring next valid LG edge.", play_anim=False) 
                 self.wait(1.0)
 
             self.ptr[u] += 1 # Move to the next neighbor (Dinic's optimization)
 
-        # All edges from u explored, backtrack from u
-        self.update_status_text(f"DFS Retreat: All LG edges from {u_display_name} explored. Backtracking from {u_display_name}.", color=ORANGE, play_anim=False)
+        # All edges from u explored, this node is a dead end. Time to RETREAT from the node.
+        self.update_status_text(f"RETREAT: All edges from {u_display_name} explored.", color=ORANGE, play_anim=False)
         self._update_sink_action_text("retreat", new_color=ORANGE, animate=True) 
         self.wait(2.0)
+
+        # --- IMPROVEMENT: Explicitly mark 'u' as a dead end and "delete" it from the LG for this phase ---
+        if u != self.source_node: # The source node is never a dead end
+            self.dead_nodes_in_phase.add(u)
+            u_dot, u_lbl = self.node_mobjects[u]
+            
+            self.update_status_text(f"Node {u_display_name} is a dead end. Deleting from LG for this phase.", color=ORANGE, play_anim=False)
+            self.wait(1.5)
+
+            anims_dead_node = [
+                u_dot.animate.set_fill(DIMMED_COLOR, opacity=DIMMED_OPACITY * 1.5),
+                u_lbl.animate.set_color(GREY)
+            ]
+            self.play(*anims_dead_node, run_time=0.5)
+            self.wait(1.0)
+        # --- END OF IMPROVEMENT ---
+
         self.play(FadeOut(highlight_ring), run_time=0.15) 
         if highlight_ring in self.dfs_traversal_highlights: self.dfs_traversal_highlights.remove(highlight_ring)
         return 0 # No path found from u
@@ -348,6 +366,7 @@ class DinitzAlgorithmVisualizer(Scene):
         # to form a blocking flow. Animates path discovery, bottleneck calculation, and flow augmentation.
         
         self.ptr = {v_id: 0 for v_id in self.vertices_data} # Pointers for Dinic's DFS optimization
+        self.dead_nodes_in_phase = set() # IMPROVEMENT: Tracks dead-end nodes for this phase
         total_flow_this_phase = 0
         path_count_this_phase = 0
         self.dfs_traversal_highlights = VGroup().set_z_index(RING_Z_INDEX + 1) # Group for DFS node highlights
@@ -356,20 +375,20 @@ class DinitzAlgorithmVisualizer(Scene):
         self._update_sink_action_text("", animate=False) # Clear any previous action text
 
         self.update_phase_text(f"Phase {self.current_phase_num}: Step 2 - Find Blocking Flow in LG (DFS)", color=ORANGE)
-        self.update_status_text("DFS searches for s-t paths in LG to create a blocking flow.", play_anim=True)
+        self.update_status_text("Using DFS to find augmenting paths from S to T in the Level Graph.", play_anim=True)
         self.wait(3.0)
 
         while True: # Loop to find multiple paths in the current LG
             path_count_this_phase += 1
-            self.update_status_text(f"DFS Attempt #{path_count_this_phase}: Seeking s->t path in LG from S (Node {self.source_node}).", play_anim=True)
+            self.update_status_text(f"DFS Attempt #{path_count_this_phase}: Seeking S->T path from Node {self.source_node}.", play_anim=True)
             self.wait(1.5) 
             current_path_anim_info = [] # Stores ((u,v), edge_mo, original_color, ...) for the found path
 
             # Perform DFS to find one s-t path and its bottleneck capacity
-            bottleneck_flow = self._dfs_recursive_find_path_anim(self.source_node, float('inf'), current_path_anim_info)
+            bottleneck_flow = self._dfs_advance_and_retreat(self.source_node, float('inf'), current_path_anim_info)
 
             if bottleneck_flow == 0: # No more s-t paths can be found in the current LG
-                self.update_status_text("No more s-t paths in LG. Blocking flow for this phase is complete.", color=YELLOW_C, play_anim=True)
+                self.update_status_text("No more S-T paths in LG. Blocking flow for this phase is complete.", color=YELLOW_C, play_anim=True)
                 self.wait(3.5)
                 break # Exit loop for this DFS phase
 
@@ -398,7 +417,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     self.play(AnimationGroup(*flash_anims, lag_ratio=0.05))
                     self.wait(0.75)
 
-            self.update_status_text(f"Path #{path_count_this_phase} found. Bottleneck: {bottleneck_flow:.1f}. Augmenting...", color=GREEN_A, play_anim=True)
+            self.update_status_text(f"Path #{path_count_this_phase} found. Bottleneck: {bottleneck_flow:.1f}. Augmenting flow...", color=GREEN_A, play_anim=True)
             self._update_sink_action_text("augment", new_color=GREEN_B, animate=True) 
             self.wait(1.0) # Reduced wait before path highlight
             
@@ -454,7 +473,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 # Animations for edge (u,v) appearance change post-augmentation
                 res_cap_after_uv = self.capacities.get((u,v),0) - self.flow.get((u,v),0)
                 is_still_lg_edge_uv = (self.levels.get(u,-1)!=-1 and self.levels.get(v,-1)!=-1 and \
-                                       self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 )
+                                       self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 and v not in self.dead_nodes_in_phase )
                 if not is_still_lg_edge_uv: # Edge is saturated or no longer LG
                     visual_updates_this_edge.append(edge_mo.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR, width=EDGE_STROKE_WIDTH))
                     if (u,v) not in self.original_edge_tuples: # Hide residual label if non-original
@@ -476,7 +495,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     rev_edge_mo_vu = self.edge_mobjects[(v,u)]
                     res_cap_vu = self.capacities.get((v,u),0) - self.flow.get((v,u),0) 
                     is_rev_edge_in_lg_vu = (self.levels.get(v,-1)!=-1 and self.levels.get(u,-1)!=-1 and \
-                                            self.levels[u]==self.levels[v]+1 and res_cap_vu > 0) 
+                                            self.levels[u]==self.levels[v]+1 and res_cap_vu > 0 and u not in self.dead_nodes_in_phase) 
 
                     if is_rev_edge_in_lg_vu: # Reverse edge becomes part of LG
                         lg_color_vu = LEVEL_COLORS[self.levels[v]%len(LEVEL_COLORS)]
@@ -550,7 +569,7 @@ class DinitzAlgorithmVisualizer(Scene):
 
             self._update_sink_action_text("", animate=True) # Clear "augment" text
 
-            self.update_status_text(f"Flow augmented. Current phase flow: {total_flow_this_phase:.1f}. Searching next path...", color=WHITE, play_anim=True)
+            self.update_status_text(f"Flow augmented. Current phase flow: {total_flow_this_phase:.1f}. Searching for next path...", color=WHITE, play_anim=True)
             self.wait(2.5) 
 
         if self.dfs_traversal_highlights.submobjects: # Clean up any remaining DFS highlights
@@ -666,10 +685,10 @@ class DinitzAlgorithmVisualizer(Scene):
                 if current_edge_tuple not in self.original_edge_tuples and current_edge_tuple not in self.edge_mobjects:
                     n_u_dot = self.node_mobjects[u_node][0]; n_v_dot = self.node_mobjects[v_node][0]
                     rev_arrow = Arrow(n_u_dot.get_center(), n_v_dot.get_center(), buff=NODE_RADIUS,
-                                      stroke_width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR,
-                                      color=REVERSE_EDGE_COLOR,
-                                      max_tip_length_to_length_ratio=0.2, tip_length=ARROW_TIP_LENGTH * 0.8, 
-                                      z_index=REVERSE_EDGE_Z_INDEX) 
+                                        stroke_width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR,
+                                        color=REVERSE_EDGE_COLOR,
+                                        max_tip_length_to_length_ratio=0.2, tip_length=ARROW_TIP_LENGTH * 0.8, 
+                                        z_index=REVERSE_EDGE_Z_INDEX) 
                     rev_arrow.set_opacity(REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0) 
                     self.edge_mobjects[current_edge_tuple] = rev_arrow
                     edges_vgroup.add(rev_arrow) 
@@ -799,7 +818,7 @@ class DinitzAlgorithmVisualizer(Scene):
             self.update_phase_text(f"Phase {self.current_phase_num}: Step 1 - Build Level Graph (LG)", color=BLUE_B, play_anim=True)
             self._update_sink_action_text("", animate=False) 
             self.wait(1.0) 
-            self.update_status_text(f"BFS from S (Node {self.source_node}) to define node levels (shortest dist. from S).", play_anim=True)
+            self.update_status_text(f"BFS from S (Node {self.source_node}) to find shortest paths in the residual graph.", play_anim=True)
             self.wait(3.0) 
 
             # BFS to build Level Graph
@@ -828,7 +847,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 restore_anims.append(dot.animate.set_width(node_attrs["width"]).set_fill(node_attrs["fill_color"], opacity=node_attrs["opacity"]).set_stroke(color=node_attrs["stroke_color"], width=node_attrs["stroke_width"]))
                 # Restore label color, special handling for s/t done via transform earlier
                 if v_id != self.source_node and v_id != self.sink_node: # Regular nodes
-                     restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
+                    restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
                 elif v_id == self.source_node or v_id == self.sink_node: # s and t labels
                     restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
 
@@ -936,15 +955,15 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.update_status_text(f"Sink {sink_display_name} (Node {self.sink_node}) not reached by BFS. No more augmenting paths.", color=RED_C, play_anim=True)
                 self.wait(3.0)
                 self.update_max_flow_display(play_anim=True) 
-                self.update_phase_text(f"End of Dinitz. Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
-                self.update_status_text(f"Algorithm Terminates. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+                self.update_phase_text(f"Algorithm Complete. Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
+                self.update_status_text(f"Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
                 self._update_sink_action_text("", animate=False) 
                 self.wait(4.5)
                 break # Exit main Dinitz loop
             else: # Sink reached, proceed to isolate LG and then DFS
-                self.update_status_text(f"Sink {sink_display_name} (Node {self.sink_node}) at L{self.levels[self.sink_node]}. Level Graph layers established.", color=GREEN_A, play_anim=True); self.wait(3.0)
+                self.update_status_text(f"Sink {sink_display_name} (Node {self.sink_node}) found at L{self.levels[self.sink_node]}. Level Graph established.", color=GREEN_A, play_anim=True); self.wait(3.0)
                 
-                latex_status_string = r"\mbox{Isolating LG: Edges $(u,v)$ where $level(v)=level(u)+1$ \& residual capacity $>0$.}"
+                latex_status_string = r"\mbox{Isolating LG: Keep edges $(u,v)$ where $level(v)=level(u)+1$.}"
                 self.update_status_text(latex_status_string, play_anim=True, is_latex=True)
                 self.wait(1.0) 
 
@@ -997,10 +1016,10 @@ class DinitzAlgorithmVisualizer(Scene):
                 flow_this_phase = self.animate_dfs_path_finding_phase() 
                 
                 self._update_sink_action_text("", animate=False) # Clear any DFS action text
-                self.update_phase_text(f"End of Phase {self.current_phase_num}. Blocking Flow: {flow_this_phase:.1f}. Sink Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
+                self.update_phase_text(f"End of Phase {self.current_phase_num}. Blocking Flow: {flow_this_phase:.1f}. Total Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.wait(3.5) 
                 if self.levels.get(self.sink_node, -1) != -1 : # If sink was reachable, prepare for next phase
-                    self.update_status_text(f"Phase complete. Preparing for next phase.", color=BLUE_A, play_anim=True)
+                    self.update_status_text(f"Phase complete. Resetting for the next BFS.", color=BLUE_A, play_anim=True)
                     self.wait(3.0) 
 
         # Algorithm conclusion
@@ -1009,7 +1028,7 @@ class DinitzAlgorithmVisualizer(Scene):
         if self.levels.get(self.sink_node, -1) == -1 and self.max_flow_value == 0 : # Handles case where s and t are disconnected from start
              self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Max Flow: {self.max_flow_value:.1f}", color=RED_A, play_anim=True)
         elif self.levels.get(self.sink_node, -1) == -1 : # Normal termination when sink becomes unreachable
-            self.update_status_text(f"Algorithm Concluded. Sink Unreachable in last BFS. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
         else: # Should ideally be caught by the sink unreachable in BFS loop
             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
         self.wait(5.0)
