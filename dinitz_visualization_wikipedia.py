@@ -753,12 +753,12 @@ class DinitzAlgorithmVisualizer(Scene):
 
         # Define layout for nodes
         self.graph_layout = { 
-            0: [-5, 0, 0],      # Node s
-            1: [-2.5, 1.5, 0],  # Node 1
-            2: [-2.5, -1.5, 0], # Node 2
-            3: [2.5, 1.5, 0],   # Node 3
-            4: [2.5, -1.5, 0],  # Node 4
-            5: [5, 0, 0]        # Node t
+            0: [-3, 0, 0],      # Node s
+            1: [-1.5, 1.5, 0],  # Node 1
+            2: [-1.5, -1.5, 0], # Node 2
+            3: [1.5, 1.5, 0],   # Node 3
+            4: [1.5, -1.5, 0],  # Node 4
+            5: [3, 0, 0]        # Node t
         }
 
         # Dictionaries to store mobjects for nodes, edges, and labels
@@ -769,7 +769,7 @@ class DinitzAlgorithmVisualizer(Scene):
         self.base_label_visual_attrs = {} # Stores original opacity for labels
         self.edge_residual_capacity_mobjects = {} # For non-original edges' capacity labels
 
-        self.desired_large_scale = 1.1 # Scale factor for the main graph display
+        self.desired_large_scale = 1.2 # Scale factor for the main graph display
 
         # Create and animate node mobjects (dots and labels)
         nodes_vgroup = VGroup()
