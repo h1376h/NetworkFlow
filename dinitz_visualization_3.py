@@ -49,7 +49,7 @@ REVERSE_EDGE_Z_INDEX = 4
 
 # This will place the normal edge "above" (in the direction of the perpendicular vector)
 # and the reverse edge "below".
-EDGE_SHIFT_AMOUNT = 0.15 # Single value for shifting, used as + and -
+EDGE_SHIFT_AMOUNT = 0.12 # Single value for shifting, used as + and -
 
 # Flow pulse animation constants
 FLOW_PULSE_COLOR = BLUE_B
