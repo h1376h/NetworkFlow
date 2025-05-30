@@ -51,6 +51,7 @@ REVERSE_EDGE_Z_INDEX = 4
 # and the reverse edge "below".
 DEFAULT_EDGE_SHIFT_AMOUNT = 0.1
 REVERSE_EDGE_SHIFT_AMOUNT = -0.1
+ARROW_OFFSET_FROM_NODE = 0.01
 
 # Flow pulse animation constants
 FLOW_PULSE_COLOR = BLUE_B
@@ -733,10 +734,10 @@ class DinitzAlgorithmVisualizer(Scene):
             direction = normalize(end_node_center - start_node_center)
 
             # The start of the arrow's line is on the source node's circumference.
-            start_point = start_node_center + direction * NODE_RADIUS
+            start_point = start_node_center + direction * (NODE_RADIUS + ARROW_OFFSET_FROM_NODE)
             # The end of the arrow's line is pulled back from the destination
             # node's circumference by the length of the arrowhead.
-            end_point = end_node_center - direction * (NODE_RADIUS + ARROW_TIP_LENGTH)
+            end_point = end_node_center - direction * (NODE_RADIUS + ARROW_OFFSET_FROM_NODE)
 
             arrow = Arrow(
                 start_point, end_point,
