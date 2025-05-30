@@ -11,7 +11,7 @@ ARROW_TIP_LENGTH = 0.16
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
 PHASE_TEXT_FONT_SIZE = 22      # For text below section title
-STATUS_TEXT_FONT_SIZE = 20     # For text below phase title
+STATUS_TEXT_FONT_SIZE = 20      # For text below phase title
 NODE_LABEL_FONT_SIZE = 16
 EDGE_CAPACITY_LABEL_FONT_SIZE = 12 # Used for original edges
 EDGE_FLOW_PREFIX_FONT_SIZE = 12    # Used for original edges & pure reverse residual
@@ -53,6 +53,14 @@ FLOW_PULSE_TIME_WIDTH = 0.35  # Proportion of edge length lit up by flash
 FLOW_PULSE_EDGE_RUNTIME = 0.5 # Time for pulse to traverse one edge
 FLOW_PULSE_Z_INDEX_OFFSET = 10
 EDGE_UPDATE_RUNTIME = 0.3       # Time for text/visual updates after pulse on an edge
+
+# --- Sink Action Text States ---
+SINK_ACTION_STATES = {
+    "nothing": {"text": "", "color": WHITE},
+    "augment": {"text": "augment", "color": GREEN_B},
+    "retreat": {"text": "retreat", "color": ORANGE},
+    "advance": {"text": "advance", "color": YELLOW_A},
+}
 
 class DinitzAlgorithmVisualizer(Scene):
 
@@ -159,63 +167,65 @@ class DinitzAlgorithmVisualizer(Scene):
         new_text_str = f"Sink's value of flow: {self.max_flow_value:.1f}"
         self._update_text_generic("max_flow_display_mobj", new_text_str, MAX_FLOW_DISPLAY_FONT_SIZE, BOLD, GREEN_C, play_anim)
 
-    def _update_sink_action_text(self, new_text_content, new_color=YELLOW, animate=True):
-        # Updates a text mobject (sink_action_text_mobj) typically shown near the source node
-        # to indicate DFS actions like "augment", "retreat".
+    def _update_sink_action_text(self, state: str, animate=True):
+        """
+        Updates the sink action text based on the desired state (nothing, advance, retreat, augment).
+        Manages the text content, color, position, and animation using a state dictionary.
+        """
+        state_info = SINK_ACTION_STATES.get(state)
+        if not state_info:
+            print(f"Warning: Invalid sink action state '{state}' provided.")
+            return
+
+        new_text_str = state_info["text"]
+        new_color = state_info["color"]
+        
         current_mobj = self.sink_action_text_mobj
-        old_text_content = current_mobj.text
-        old_color_val = current_mobj.get_color()
+        old_text_str = current_mobj.text
 
-        if old_text_content == new_text_content and old_color_val == new_color:
-            return # No change needed
+        # Exit if there's no change to be made
+        if old_text_str == new_text_str and current_mobj.get_color() == new_color:
+            return
 
-        target_text_template = Text(
-            new_text_content.upper(), # Standardize to uppercase
-            font_size=STATUS_TEXT_FONT_SIZE, # Using STATUS_TEXT_FONT_SIZE for consistency
-            weight=current_mobj.weight, # Preserve weight
+        # Create the target mobject based on the new state
+        target_mobj = Text(
+            new_text_str,
+            font_size=STATUS_TEXT_FONT_SIZE,
+            weight=BOLD,
             color=new_color
         )
+        target_mobj.set_z_index(current_mobj.z_index)
 
-        # Position the text above the source node if available
-        if hasattr(self, 'node_mobjects') and \
-           hasattr(self, 'source_node') and \
-           self.source_node in self.node_mobjects and \
-           self.node_mobjects.get(self.source_node) is not None:
-            source_node_group = self.node_mobjects[self.source_node]
-            if isinstance(source_node_group, VGroup) and len(source_node_group.submobjects) > 0:
-                source_node_dot = source_node_group[0]
-                target_text_template.next_to(source_node_dot, UP, buff=BUFF_SMALL)
-            else: 
-                target_text_template.move_to(current_mobj.get_center()) # Fallback position
-        else: 
-            target_text_template.move_to(current_mobj.get_center()) # Fallback position
-        
-        target_text_template.set_z_index(current_mobj.z_index)
+        # Position the new mobject above the source node
+        if hasattr(self, 'source_node') and self.source_node in self.node_mobjects:
+            source_dot = self.node_mobjects[self.source_node][0]
+            target_mobj.next_to(source_dot, UP, buff=BUFF_SMALL)
+        else:
+            # Fallback position if source node isn't available
+            target_mobj.move_to(current_mobj.get_center())
 
+        # Animate the transition
         if animate:
-            if old_text_content and not new_text_content: # Text becomes empty
-                self.play(FadeOut(current_mobj, run_time=0.25, scale=0.8))
-                current_mobj.become(target_text_template) # Become empty template
-            elif not old_text_content and new_text_content: # Text appears from empty
-                current_mobj.become(target_text_template)
-                self.play(FadeIn(current_mobj, run_time=0.25, scale=1.2))
-            elif old_text_content and new_text_content: # Text changes content
-                old_mobj_anim_copy = current_mobj.copy() 
-                current_mobj.become(target_text_template) 
-                self.play(
-                    FadeOut(old_mobj_anim_copy, run_time=0.20, scale=0.8),
-                    FadeIn(current_mobj, run_time=0.20, scale=1.2) 
-                )
-            elif new_text_content and old_text_content == new_text_content and old_color_val != new_color: # Only color changes
-                self.play(current_mobj.animate.set_color(new_color), run_time=0.3)
-            elif not new_text_content and not old_text_content and old_color_val != new_color: # Empty text, color changes (unlikely but handled)
-                current_mobj.set_color(new_color) 
-        else: # No animation, just update
-            current_mobj.become(target_text_template) 
-            if current_mobj not in self.mobjects and new_text_content: # Add if it became non-empty and wasn't there
-                self.add(current_mobj)
-            elif new_text_content == "" and current_mobj in self.mobjects: # Remove if it became empty and was there
-                pass # Let it become empty, FadeOut handles removal if animated
+            # Transition: from text to empty string
+            if old_text_str and not new_text_str:
+                self.play(FadeOut(current_mobj, run_time=0.3))
+            # Transition: from empty string to new text
+            elif not old_text_str and new_text_str:
+                self.remove(current_mobj) # Remove the old empty placeholder
+                self.add(target_mobj)     # Add the new mobject
+                self.play(FadeIn(target_mobj, run_time=0.3))
+            # Transition: from one text to another
+            else: # old_text_str and new_text_str
+                self.play(ReplacementTransform(current_mobj, target_mobj))
+        
+        # If not animating, just perform the replacement
+        else:
+            self.remove(current_mobj)
+            if new_text_str: # Only add the new mobject if it has content
+                self.add(target_mobj)
+
+        # Update the reference to the current action text mobject
+        self.sink_action_text_mobj = target_mobj
 
     def _dfs_advance_and_retreat(self, u, pushed, current_path_info_list):
         # Recursive DFS function to find a path in the level graph, matching ADVANCE/RETREAT logic.
@@ -235,18 +245,18 @@ class DinitzAlgorithmVisualizer(Scene):
         u_display_name = "s" if u == self.source_node else "t" if u == self.sink_node else str(u)
 
         if u == self.sink_node: # Path to sink found (successful ADVANCE to t)
-            self.update_status_text(f"ADVANCE success: Reached Sink T (Node {self.sink_node})!", color=GREEN_B, play_anim=False)
-            self._update_sink_action_text("augment", new_color=GREEN_B, animate=True) 
+            self.update_status_text(f"Path Found: Reached Sink T (Node {self.sink_node})!", color=GREEN_B, play_anim=False)
+            self._update_sink_action_text("augment") 
             self.wait(2.0)
             self.play(FadeOut(highlight_ring), run_time=0.15) # Remove highlight
             if highlight_ring in self.dfs_traversal_highlights: self.dfs_traversal_highlights.remove(highlight_ring)
             return pushed # Return the bottleneck capacity found so far
 
-        self.update_status_text(f"ADVANCE: From {u_display_name}, exploring valid LG edges.", play_anim=False)
-        self.wait(1.5)
-
         # Iterate through neighbors using the pointer (ptr) for Dinic's optimization
         while self.ptr[u] < len(self.adj[u]): 
+            # Set state to "advance" before trying each edge
+            self._update_sink_action_text("advance")
+            
             v_candidate = self.adj[u][self.ptr[u]] 
             edge_key_uv = (u, v_candidate)
             
@@ -282,7 +292,7 @@ class DinitzAlgorithmVisualizer(Scene):
                         if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height: target_label.height = self.scaled_flow_text_height * 0.9
                         current_anims_try.append(label_mobj.animate.become(target_label))
 
-                self.update_status_text(f"ADVANCE: Try edge ({u_display_name} -> {actual_v_display_name}), Res.Cap: {res_cap_cand:.0f}.", play_anim=False)
+                self.update_status_text(f"Advance: Try edge ({u_display_name} -> {actual_v_display_name}), Res.Cap: {res_cap_cand:.0f}.", play_anim=False)
                 self.wait(1.5) 
                 if current_anims_try: self.play(*current_anims_try, run_time=0.4)
                 self.wait(0.5) 
@@ -300,8 +310,8 @@ class DinitzAlgorithmVisualizer(Scene):
                     return tr # Return flow pushed
 
                 # Backtracking: This edge led to a dead end
-                self.update_status_text(f"RETREAT: Edge ({u_display_name} -> {actual_v_display_name}) is a dead end. Backtracking.", color=YELLOW_C, play_anim=False)
-                self._update_sink_action_text("retreat", new_color=ORANGE, animate=True) 
+                self._update_sink_action_text("retreat") 
+                self.update_status_text(f"Retreat: Edge ({u_display_name} -> {actual_v_display_name}) is a dead end. Backtracking.", color=YELLOW_C, play_anim=False)
                 self.wait(1.5)
                 
                 # Restore edge appearance based on whether it's still a valid LG edge or should be dimmed
@@ -331,14 +341,12 @@ class DinitzAlgorithmVisualizer(Scene):
                 if current_anims_backtrack_restore: self.play(*current_anims_backtrack_restore, run_time=0.4)
                 self.play(Indicate(edge_mo_for_v, color=RED_D, scale_factor=1.1, run_time=0.45)) # Indicate dead end
                 self.wait(0.5)
-                self.update_status_text(f"ADVANCE: From {u_display_name}, exploring next valid LG edge.", play_anim=False) 
-                self.wait(1.0)
-
+                
             self.ptr[u] += 1 # Move to the next neighbor (Dinic's optimization)
 
         # All edges from u explored, this node is a dead end. Time to RETREAT from the node.
-        self.update_status_text(f"RETREAT: All edges from {u_display_name} explored.", color=ORANGE, play_anim=False)
-        self._update_sink_action_text("retreat", new_color=ORANGE, animate=True) 
+        self._update_sink_action_text("retreat") 
+        self.update_status_text(f"Retreat: All edges from {u_display_name} explored. Node is a dead end.", color=ORANGE, play_anim=False)
         self.wait(2.0)
 
         # --- IMPROVEMENT: Explicitly mark 'u' as a dead end and "delete" it from the LG for this phase ---
@@ -346,7 +354,7 @@ class DinitzAlgorithmVisualizer(Scene):
             self.dead_nodes_in_phase.add(u)
             u_dot, u_lbl = self.node_mobjects[u]
             
-            self.update_status_text(f"Node {u_display_name} is a dead end. Deleting from LG for this phase.", color=ORANGE, play_anim=False)
+            self.update_status_text(f"Node {u_display_name} deleted from LG for this phase.", color=ORANGE, play_anim=False)
             self.wait(1.5)
 
             anims_dead_node = [
@@ -372,7 +380,7 @@ class DinitzAlgorithmVisualizer(Scene):
         self.dfs_traversal_highlights = VGroup().set_z_index(RING_Z_INDEX + 1) # Group for DFS node highlights
         if self.dfs_traversal_highlights not in self.mobjects: self.add(self.dfs_traversal_highlights)
 
-        self._update_sink_action_text("", animate=False) # Clear any previous action text
+        self._update_sink_action_text("nothing", animate=False) # Clear any previous action text
 
         self.update_phase_text(f"Phase {self.current_phase_num}: Step 2 - Find Blocking Flow in LG (DFS)", color=ORANGE)
         self.update_status_text("Using DFS to find augmenting paths from S to T in the Level Graph.", play_anim=True)
@@ -418,7 +426,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     self.wait(0.75)
 
             self.update_status_text(f"Path #{path_count_this_phase} found. Bottleneck: {bottleneck_flow:.1f}. Augmenting flow...", color=GREEN_A, play_anim=True)
-            self._update_sink_action_text("augment", new_color=GREEN_B, animate=True) 
+            self._update_sink_action_text("augment") 
             self.wait(1.0) # Reduced wait before path highlight
             
             # Highlight the found path in green
@@ -567,7 +575,7 @@ class DinitzAlgorithmVisualizer(Scene):
             self.update_max_flow_display(play_anim=True) # Update total flow display
             self.wait(0.5)
 
-            self._update_sink_action_text("", animate=True) # Clear "augment" text
+            self._update_sink_action_text("nothing", animate=True) # Clear "augment" text
 
             self.update_status_text(f"Flow augmented. Current phase flow: {total_flow_this_phase:.1f}. Searching for next path...", color=WHITE, play_anim=True)
             self.wait(2.5) 
@@ -576,7 +584,7 @@ class DinitzAlgorithmVisualizer(Scene):
             self.play(FadeOut(self.dfs_traversal_highlights), run_time=0.2)
 
         if self.sink_action_text_mobj.text != "": # Clear sink action text if any
-            self._update_sink_action_text("", animate=True) 
+            self._update_sink_action_text("nothing", animate=True) 
 
         return total_flow_this_phase # Return total flow pushed in this DFS phase
 
@@ -816,7 +824,7 @@ class DinitzAlgorithmVisualizer(Scene):
         while True: # Main loop for Dinitz phases
             self.current_phase_num += 1
             self.update_phase_text(f"Phase {self.current_phase_num}: Step 1 - Build Level Graph (LG)", color=BLUE_B, play_anim=True)
-            self._update_sink_action_text("", animate=False) 
+            self._update_sink_action_text("nothing", animate=False) 
             self.wait(1.0) 
             self.update_status_text(f"BFS from S (Node {self.source_node}) to find shortest paths in the residual graph.", play_anim=True)
             self.wait(3.0) 
@@ -957,7 +965,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.update_max_flow_display(play_anim=True) 
                 self.update_phase_text(f"Algorithm Complete. Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.update_status_text(f"Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
-                self._update_sink_action_text("", animate=False) 
+                self._update_sink_action_text("nothing", animate=False) 
                 self.wait(4.5)
                 break # Exit main Dinitz loop
             else: # Sink reached, proceed to isolate LG and then DFS
@@ -1015,20 +1023,20 @@ class DinitzAlgorithmVisualizer(Scene):
                 # Perform DFS to find blocking flow in the isolated LG
                 flow_this_phase = self.animate_dfs_path_finding_phase() 
                 
-                self._update_sink_action_text("", animate=False) # Clear any DFS action text
+                self._update_sink_action_text("nothing", animate=False) # Clear any DFS action text
                 self.update_phase_text(f"End of Phase {self.current_phase_num}. Blocking Flow: {flow_this_phase:.1f}. Total Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
                 self.wait(3.5) 
                 if self.levels.get(self.sink_node, -1) != -1 : # If sink was reachable, prepare for next phase
                     self.update_status_text(f"Phase complete. Resetting for the next BFS.", color=BLUE_A, play_anim=True)
                     self.wait(3.0) 
-
+        
         # Algorithm conclusion
         self.update_section_title("3. Dinitz Algorithm Summary", play_anim=True)
         self.wait(1.0)
         if self.levels.get(self.sink_node, -1) == -1 and self.max_flow_value == 0 : # Handles case where s and t are disconnected from start
-             self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Max Flow: {self.max_flow_value:.1f}", color=RED_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Max Flow: {self.max_flow_value:.1f}", color=RED_A, play_anim=True)
         elif self.levels.get(self.sink_node, -1) == -1 : # Normal termination when sink becomes unreachable
-            self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Sink Unreachable in last BFS. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
         else: # Should ideally be caught by the sink unreachable in BFS loop
             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
         self.wait(5.0)
@@ -1075,7 +1083,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     run_time=2.0 
                 )
         # --- End of Final Emphasis Flash Animation ---
-        
+
         # Clean up scene, leaving only titles and final status
         mobjects_that_should_remain_on_screen = Group(self.main_title, self.info_texts_group)
         mobjects_that_should_remain_on_screen.remove(*[m for m in mobjects_that_should_remain_on_screen if not isinstance(m, Mobject)]) # Ensure only mobjects
