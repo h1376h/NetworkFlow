@@ -18,6 +18,9 @@ more/
 # PPTX files
 *.pptx
 
+# MP4 files
+*.mp4
+
 # Python cache files
 __pycache__/
 *.py[cod]
