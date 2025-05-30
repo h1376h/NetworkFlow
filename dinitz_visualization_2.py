@@ -7,6 +7,7 @@ NODE_RADIUS = 0.28
 NODE_STROKE_WIDTH = 1.5
 EDGE_STROKE_WIDTH = 3.5
 ARROW_TIP_LENGTH = 0.16
+REVERSE_ARROW_TIP_LENGTH = 0.12 # New constant for smaller reverse arrowheads
 
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
@@ -55,7 +56,7 @@ FLOW_PULSE_WIDTH_FACTOR = 1.8
 FLOW_PULSE_TIME_WIDTH = 0.35  # Proportion of edge length lit up by flash
 FLOW_PULSE_EDGE_RUNTIME = 0.5 # Time for pulse to traverse one edge
 FLOW_PULSE_Z_INDEX_OFFSET = 10
-EDGE_UPDATE_RUNTIME = 0.3         # Time for text/visual updates after pulse on an edge
+EDGE_UPDATE_RUNTIME = 0.3          # Time for text/visual updates after pulse on an edge
 
 # --- Sink Action Text States ---
 SINK_ACTION_STATES = {
@@ -714,7 +715,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     n_u_dot = self.node_mobjects[u_node][0]
                     n_v_dot = self.node_mobjects[v_node][0]
 
-                    # --- FIX: Create Offset/Dashed Arrow with an IDENTICAL arrowhead shape ---
+                    # --- FIX: Create Offset/Dashed Arrow with a smaller arrowhead ---
                     u_center, v_center = n_u_dot.get_center(), n_v_dot.get_center()
                     direction_vector = v_center - u_center
                     unit_direction = normalize(direction_vector)
@@ -731,7 +732,7 @@ class DinitzAlgorithmVisualizer(Scene):
                         buffered_start, buffered_end, buff=0,
                         stroke_width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR,
                         color=REVERSE_EDGE_COLOR,
-                        tip_length=ARROW_TIP_LENGTH # Use the same global constant
+                        tip_length=REVERSE_ARROW_TIP_LENGTH # Use the new smaller constant
                     )
                     
                     # 2. Extract the line and tip by index. Create a dashed version of the line.
@@ -975,7 +976,7 @@ class DinitzAlgorithmVisualizer(Scene):
                                         anim = part.animate.set_opacity(1.0)
                                         if isinstance(part, Text): anim = part.animate.set_opacity(1.0).set_color(LABEL_TEXT_COLOR)
                                         bfs_anims_this_step.append(anim)
-                self.play(FadeOut(ind_u), run_time=0.20) 
+                    self.play(FadeOut(ind_u), run_time=0.20) 
 
                 if bfs_anims_this_step: self.play(AnimationGroup(*bfs_anims_this_step, lag_ratio=0.1), run_time=0.8); self.wait(0.5)
                 
