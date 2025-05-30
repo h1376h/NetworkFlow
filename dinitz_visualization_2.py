@@ -203,7 +203,7 @@ class DinitzAlgorithmVisualizer(Scene):
         # Position the new mobject above the source node
         if hasattr(self, 'source_node') and self.source_node in self.node_mobjects:
             source_dot = self.node_mobjects[self.source_node][0]
-            target_mobj.next_to(source_dot, UP, buff=BUFF_SMALL)
+            target_mobj.next_to(source_dot, UP, buff=BUFF_MED)
         else:
             # Fallback position if source node isn't available
             target_mobj.move_to(current_mobj.get_center())
