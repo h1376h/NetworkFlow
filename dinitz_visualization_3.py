@@ -736,7 +736,6 @@ class DinitzAlgorithmVisualizer(Scene):
             # The start of the arrow's line is on the source node's circumference.
             start_point = start_node_center + direction * (NODE_RADIUS + ARROW_OFFSET_FROM_NODE)
             # The end of the arrow's line is pulled back from the destination
-            # node's circumference by the length of the arrowhead.
             end_point = end_node_center - direction * (NODE_RADIUS + ARROW_OFFSET_FROM_NODE)
 
             arrow = Arrow(
