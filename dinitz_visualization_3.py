@@ -119,13 +119,14 @@ class DinitzAlgorithmVisualizer(Scene):
         self.current_section_title_mobj = Text("", font_size=SECTION_TITLE_FONT_SIZE, weight=BOLD).set_z_index(10)
         self.phase_text_mobj = Text("", font_size=PHASE_TEXT_FONT_SIZE, weight=BOLD).set_z_index(10)
         self.algo_status_mobj = Text("", font_size=STATUS_TEXT_FONT_SIZE).set_z_index(10)
+        self.calculation_details_mobj = Text("", font_size=STATUS_TEXT_FONT_SIZE).set_z_index(10)
         self.max_flow_display_mobj = Text("", font_size=MAX_FLOW_DISPLAY_FONT_SIZE, weight=BOLD, color=GREEN_C).set_z_index(10)
 
         self.info_texts_group = VGroup(
             self.current_section_title_mobj,
             self.phase_text_mobj,
             self.algo_status_mobj,
-            self.max_flow_display_mobj
+            self.calculation_details_mobj
         ).arrange(DOWN, center=True, buff=BUFF_MED).next_to(self.main_title, DOWN, buff=BUFF_MED)
         self.add(self.info_texts_group)
 
@@ -240,6 +241,37 @@ class DinitzAlgorithmVisualizer(Scene):
             if not is_empty_new_content and new_mobj not in self.mobjects:
                 self.add(new_mobj)
 
+    def display_calculation_details(self, path_info=None, bottleneck_value=None, play_anim=True):
+        """
+        Displays calculation details for the current step, such as bottleneck calculation.
+        
+        Parameters:
+        - path_info: List of tuples ((u,v), edge_mo) describing the path
+        - bottleneck_value: The calculated bottleneck value
+        - play_anim: Whether to animate the text change
+        """
+        if path_info is None or bottleneck_value is None:
+            # Clear calculation text if no data is provided
+            self._update_text_generic("calculation_details_mobj", "", STATUS_TEXT_FONT_SIZE, NORMAL, WHITE, play_anim)
+            return
+            
+        # Generate the bottleneck calculation text in a simpler, more educational format
+        residual_capacities = []
+        
+        for (u, v), _ in path_info:
+            res_cap = self.capacities.get((u, v), 0) - self.flow.get((u, v), 0)
+            u_display = "s" if u == self.source_node else "t" if u == self.sink_node else str(u)
+            v_display = "s" if v == self.source_node else "t" if v == self.sink_node else str(v)
+            
+            # Show the actual residual capacity value and edge
+            residual_capacities.append(f"{res_cap:.1f} on {u_display}→{v_display}")
+        
+        # Create a simpler explanation of the bottleneck
+        calculation_str = f"Bottleneck = min({', '.join(residual_capacities)}) = {bottleneck_value:.1f}"
+        
+        # Update the calculation details text
+        self._update_text_generic("calculation_details_mobj", calculation_str, STATUS_TEXT_FONT_SIZE, NORMAL, YELLOW_B, play_anim, is_latex=False)
+
     def _update_sink_action_text(self, state: str, animate=True):
         """
         Updates the sink action text based on the desired state (nothing, advance, retreat, augment).
@@ -272,7 +304,7 @@ class DinitzAlgorithmVisualizer(Scene):
         # Position the new mobject above the source node
         if hasattr(self, 'source_node') and self.source_node in self.node_mobjects:
             source_dot = self.node_mobjects[self.source_node][0]
-            target_mobj.next_to(source_dot, UP, buff=BUFF_MED)
+            target_mobj.next_to(source_dot, UP, buff=BUFF_LARGE)
         else:
             # Fallback position if source node isn't available
             target_mobj.move_to(current_mobj.get_center())
@@ -451,6 +483,8 @@ class DinitzAlgorithmVisualizer(Scene):
         if self.dfs_traversal_highlights not in self.mobjects: self.add(self.dfs_traversal_highlights)
 
         self._update_sink_action_text("nothing", animate=False) # Clear any previous action text
+        # Clear any previous calculation details
+        self.display_calculation_details(None, None, play_anim=False)
 
         self.update_phase_text(f"Phase {self.current_phase_num}: Step 2 - Find Blocking Flow in LG (DFS)", color=ORANGE)
         self.update_status_text("Using DFS to find augmenting paths from S to T in the Level Graph.", play_anim=True)
@@ -467,6 +501,8 @@ class DinitzAlgorithmVisualizer(Scene):
 
             if bottleneck_flow == 0: # No more s-t paths can be found in the current LG
                 self.update_status_text("No more S-T paths in LG. Blocking flow for this phase is complete.", color=YELLOW_C, play_anim=True)
+                # Clear calculation details when no more paths can be found
+                self.display_calculation_details(None, None, play_anim=True)
                 self.wait(3.5)
                 break # Exit loop for this DFS phase
 
@@ -475,6 +511,10 @@ class DinitzAlgorithmVisualizer(Scene):
             total_flow_this_phase += bottleneck_flow
 
             current_path_anim_info.reverse() # Path is built from T to S, reverse for S to T animation
+
+            # Display bottleneck calculation
+            self.display_calculation_details(current_path_anim_info, bottleneck_flow, play_anim=True)
+            self.wait(2.0)  # Give viewers time to see the calculation
 
             # --- DYNAMIC REVERSE EDGE CREATION ---
             pre_augment_animations = []
@@ -675,6 +715,9 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.play(Succession(*path_augmentation_sequence, lag_ratio=1.0))
                 self.wait(0.5)
 
+            # Clear calculation details after the augmentation is complete
+            self.display_calculation_details(None, None, play_anim=False)
+            
             self.update_max_flow_display(play_anim=True)
             self.wait(0.5)
             self._update_sink_action_text("nothing", animate=True)
