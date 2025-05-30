@@ -8,7 +8,6 @@ NODE_STROKE_WIDTH = 1.5
 EDGE_STROKE_WIDTH = 3.5
 ARROW_TIP_LENGTH = 0.16
 REVERSE_ARROW_TIP_LENGTH = 0.12 # New constant for smaller reverse arrowheads
-ARROW_OFFSET_FROM_NODE = 0.05
 
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
@@ -48,8 +47,10 @@ REVERSE_EDGE_OPACITY = 0.25
 REVERSE_EDGE_STROKE_WIDTH_FACTOR = 0.6
 REVERSE_EDGE_Z_INDEX = 4
 
-DEFAULT_EDGE_SHIFT_AMOUNT = -0.07 # Controls offset of default edges from the center line
-REVERSE_EDGE_SHIFT_AMOUNT = 0.07 # Controls offset of reverse edges from the center line
+# This will place the normal edge "above" (in the direction of the perpendicular vector)
+# and the reverse edge "below".
+DEFAULT_EDGE_SHIFT_AMOUNT = 0.1
+REVERSE_EDGE_SHIFT_AMOUNT = -0.1
 
 # Flow pulse animation constants
 FLOW_PULSE_COLOR = BLUE_B
@@ -57,7 +58,7 @@ FLOW_PULSE_WIDTH_FACTOR = 1.8
 FLOW_PULSE_TIME_WIDTH = 0.35  # Proportion of edge length lit up by flash
 FLOW_PULSE_EDGE_RUNTIME = 0.5 # Time for pulse to traverse one edge
 FLOW_PULSE_Z_INDEX_OFFSET = 10
-EDGE_UPDATE_RUNTIME = 0.3         # Time for text/visual updates after pulse on an edge
+EDGE_UPDATE_RUNTIME = 0.3          # Time for text/visual updates after pulse on an edge
 
 # --- Sink Action Text States ---
 SINK_ACTION_STATES = {
@@ -148,7 +149,7 @@ class DinitzAlgorithmVisualizer(Scene):
             self._animate_text_update(old_mobj, new_mobj, new_text_content)
         else: # If not animating, just add if it's new content and not already present
             is_empty_new_content = (isinstance(new_mobj, Text) and new_mobj.text == "") or \
-                                     (isinstance(new_mobj, Tex) and new_mobj.tex_string == "")
+                                   (isinstance(new_mobj, Tex) and new_mobj.tex_string == "")
             is_in_group = new_mobj in self.info_texts_group.submobjects
 
             if not is_empty_new_content:
@@ -217,7 +218,7 @@ class DinitzAlgorithmVisualizer(Scene):
             # Transition: from empty string to new text
             elif not old_text_str and new_text_str:
                 self.remove(current_mobj) # Remove the old empty placeholder
-                self.add(target_mobj)     # Add the new mobject
+                self.add(target_mobj)      # Add the new mobject
                 self.play(FadeIn(target_mobj, run_time=0.3))
             # Transition: from one text to another
             else: # old_text_str and new_text_str
@@ -270,9 +271,9 @@ class DinitzAlgorithmVisualizer(Scene):
 
             # Check if this edge is a valid Level Graph edge (and destination is not a dead end)
             is_valid_lg_edge = (edge_mo_cand and
-                                  self.levels.get(v_candidate, -1) == self.levels.get(u, -1) + 1 and
-                                  res_cap_cand > 0 and
-                                  v_candidate not in self.dead_nodes_in_phase) # IMPROVEMENT: Check against dead nodes
+                                    self.levels.get(v_candidate, -1) == self.levels.get(u, -1) + 1 and
+                                    res_cap_cand > 0 and
+                                    v_candidate not in self.dead_nodes_in_phase) # IMPROVEMENT: Check against dead nodes
 
             if is_valid_lg_edge:
                 actual_v = v_candidate
@@ -412,6 +413,70 @@ class DinitzAlgorithmVisualizer(Scene):
             total_flow_this_phase += bottleneck_flow
             
             current_path_anim_info.reverse() # Path is built from T to S, reverse for S to T animation
+            
+            # --- DYNAMIC REVERSE EDGE CREATION ---
+            pre_augment_animations = []
+            for (u, v), _, _, _, _ in current_path_anim_info:
+                if (v, u) not in self.edge_mobjects:
+                    # 1. Get geometry & shifted centers
+                    n_u_dot, n_v_dot = self.node_mobjects[u][0], self.node_mobjects[v][0]
+                    u_center, v_center = n_u_dot.get_center(), n_v_dot.get_center()
+                    perp_vector = rotate_vector(normalize(v_center - u_center), PI / 2)
+                    
+                    rev_shift_vector = perp_vector * REVERSE_EDGE_SHIFT_AMOUNT
+                    rev_start_center = v_center + rev_shift_vector
+                    rev_end_center = u_center + rev_shift_vector
+
+                    # 2. Create a temporary, solid, buffered arrow to get correct geometry
+                    base_arrow_rev = Arrow(
+                        rev_start_center, rev_end_center,
+                        buff=NODE_RADIUS,
+                        stroke_width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR,
+                        color=REVERSE_EDGE_COLOR, 
+                        tip_length=REVERSE_ARROW_TIP_LENGTH
+                    )
+                    
+                    # 3. Create the final dashed mobject from the temporary arrow's parts
+                    original_line_part = base_arrow_rev[0]
+                    dashed_line_rev = DashedVMobject(original_line_part, num_dashes=12, dashed_ratio=0.6)
+                    rev_arrow = VGroup(dashed_line_rev, base_arrow_rev[1])
+                    rev_arrow.set_z_index(REVERSE_EDGE_Z_INDEX).set_color(REVERSE_EDGE_COLOR).set_opacity(0)
+                    
+                    self.edge_mobjects[(v, u)] = rev_arrow
+                    self.base_edge_visual_attrs[(v, u)] = {
+                        "color": rev_arrow.get_color(),
+                        "stroke_width": rev_arrow.get_stroke_width(),
+                        "opacity": REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0
+                    }
+
+                    res_cap_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR, opacity=0.0)
+                    res_cap_mobj.move_to(dashed_line_rev.get_center()).rotate(original_line_part.get_angle())
+                    offset_vec_lbl = rotate_vector(original_line_part.get_unit_vector(), PI / 2) * 0.15
+                    res_cap_mobj.shift(offset_vec_lbl).set_z_index(6)
+
+                    self.edge_residual_capacity_mobjects[(v,u)] = res_cap_mobj
+                    self.edge_label_groups[(v,u)] = VGroup(res_cap_mobj)
+                    self.base_label_visual_attrs[(v,u)] = {"opacity": 0.0}
+
+                    self.network_display_group.add(rev_arrow, res_cap_mobj)
+                    self.add(rev_arrow, res_cap_mobj)
+
+                    # 4. Prepare animations for shifting forward edge and fading in reverse edge
+                    forward_edge_mo = self.edge_mobjects[(u, v)]
+                    forward_label = self.edge_label_groups.get((u, v))
+                    fwd_shift_vector = perp_vector * DEFAULT_EDGE_SHIFT_AMOUNT
+
+                    anim_fwd_edge = forward_edge_mo.animate.shift(fwd_shift_vector)
+                    anim_fwd_label = forward_label.animate.shift(fwd_shift_vector) if forward_label else AnimationGroup()
+                    
+                    final_opacity = REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0
+                    anim_rev_edge = rev_arrow.animate.set_opacity(final_opacity)
+
+                    pre_augment_animations.append(AnimationGroup(anim_fwd_edge, anim_fwd_label, anim_rev_edge))
+
+            if pre_augment_animations:
+                self.play(AnimationGroup(*pre_augment_animations, lag_ratio=0.1, run_time=0.6))
+                self.wait(0.2)
 
             # Identify bottleneck edges for visual indication
             bottleneck_edges_for_indication = []
@@ -434,7 +499,7 @@ class DinitzAlgorithmVisualizer(Scene):
 
             self.update_status_text(f"Path #{path_count_this_phase} found. Bottleneck: {bottleneck_flow:.1f}. Augmenting flow...", color=GREEN_A, play_anim=True)
             self._update_sink_action_text("augment") 
-            self.wait(1.0) # Reduced wait before path highlight
+            self.wait(1.0) 
             
             # Highlight the found path in green
             path_highlight_anims_group = []
@@ -443,7 +508,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     edge_mobject.animate.set_color(GREEN_D).set_stroke(width=DFS_PATH_EDGE_WIDTH, opacity=1.0)
                 )
             if path_highlight_anims_group:
-                self.play(AnimationGroup(*path_highlight_anims_group, lag_ratio=0.15, run_time=0.7)) # Faster highlight
+                self.play(AnimationGroup(*path_highlight_anims_group, lag_ratio=0.15, run_time=0.7)) 
             self.wait(0.5) 
             
             # --- COMBINED FLOW PULSE AND NUMBER/VISUAL UPDATE ANIMATION ---
@@ -509,10 +574,6 @@ class DinitzAlgorithmVisualizer(Scene):
                 if (v,u) in self.edge_mobjects:
                     rev_edge_mo_vu = self.edge_mobjects[(v,u)]
                     res_cap_vu = self.capacities.get((v,u),0) - self.flow.get((v,u),0) 
-
-                    # CORRECTED LOGIC: A reverse edge (v,u) goes from a higher level to a lower level (e.g., L+1 -> L),
-                    # so it cannot be part of the current Level Graph, which only has edges from L -> L+1.
-                    # We just update its visual state based on its new residual capacity.
 
                     if res_cap_vu > 0 : # Reverse edge now has capacity, show it as a standard residual edge.
                         base_attrs_vu_edge = self.base_edge_visual_attrs.get((v,u),{})
@@ -653,23 +714,12 @@ class DinitzAlgorithmVisualizer(Scene):
         for u,v,cap in self.edges_with_capacity_list: 
             n_u_dot = self.node_mobjects[u][0]; n_v_dot = self.node_mobjects[v][0]
             
-            u_center, v_center = n_u_dot.get_center(), n_v_dot.get_center()
-            direction_vector = v_center - u_center
-            unit_direction = normalize(direction_vector)
-            
-            # Shift perpendicular to the edge direction.
-            perp_vector = rotate_vector(unit_direction, PI / 2)
-            offset = perp_vector * -DEFAULT_EDGE_SHIFT_AMOUNT 
-            
-            buffered_start = u_center + offset + unit_direction * NODE_RADIUS
-            buffered_end = v_center + offset - unit_direction * (NODE_RADIUS + ARROW_OFFSET_FROM_NODE)
-
+            # --- FIX: Use Arrow's buff parameter for clean, automatic buffering ---
             arrow = Arrow(
-                buffered_start, buffered_end,
-                buff=0, # Buffering is now handled manually
+                n_u_dot.get_center(), n_v_dot.get_center(),
+                buff=NODE_RADIUS, 
                 stroke_width=EDGE_STROKE_WIDTH, 
                 color=DEFAULT_EDGE_COLOR, 
-                max_tip_length_to_length_ratio=0.2, 
                 tip_length=ARROW_TIP_LENGTH, 
                 z_index=5
             )
@@ -702,63 +752,6 @@ class DinitzAlgorithmVisualizer(Scene):
             all_edge_labels_vgroup.add(label_group)
             capacities_to_animate_write.append(cap_text_mobj)
             flow_slashes_to_animate_write.append(VGroup(flow_val_mobj, slash_mobj)) 
-
-        # Create mobjects for potential reverse/residual edges (initially hidden or dimmed)
-        for u_node in self.vertices_data:
-            for v_node in self.adj[u_node]: 
-                current_edge_tuple = (u_node, v_node)
-                if current_edge_tuple not in self.original_edge_tuples and current_edge_tuple not in self.edge_mobjects:
-                    n_u_dot = self.node_mobjects[u_node][0]
-                    n_v_dot = self.node_mobjects[v_node][0]
-
-                    u_center, v_center = n_u_dot.get_center(), n_v_dot.get_center()
-                    direction_vector = v_center - u_center
-                    unit_direction = normalize(direction_vector)
-                    
-                    # Apply offset in the opposite direction of the default edge for a parallel effect
-                    perp_vector = rotate_vector(unit_direction, PI / 2)
-                    offset = perp_vector * REVERSE_EDGE_SHIFT_AMOUNT 
-                    
-                    buffered_start = u_center + offset + unit_direction * NODE_RADIUS
-                    buffered_end = v_center + offset - unit_direction * (NODE_RADIUS + ARROW_OFFSET_FROM_NODE)
-
-                    # 1. Create a standard Arrow. Its tip will have the correct shape and size.
-                    base_arrow = Arrow(
-                        buffered_start, buffered_end, buff=0,
-                        stroke_width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR,
-                        color=REVERSE_EDGE_COLOR,
-                        tip_length=REVERSE_ARROW_TIP_LENGTH # Use the new smaller constant
-                    )
-                    
-                    # 2. Extract the line and tip by index. Create a dashed version of the line.
-                    line_part = base_arrow[0]
-                    tip_part = base_arrow[1]
-                    dashed_line = DashedVMobject(line_part, num_dashes=12, dashed_ratio=0.6)
-                    
-                    # 3. Group the components first.
-                    rev_arrow = VGroup(dashed_line, tip_part)
-                    rev_arrow.set_z_index(REVERSE_EDGE_Z_INDEX)
-
-                    # 4. Set opacity first, then set the color.
-                    rev_arrow.set_opacity(REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0)
-                    rev_arrow.set_color(REVERSE_EDGE_COLOR)
-                    self.edge_mobjects[current_edge_tuple] = rev_arrow
-                    edges_vgroup.add(rev_arrow)
-
-                    # Residual capacity label, positioned relative to the new dashed edge's line part
-                    res_cap_val_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR, opacity=0.0)
-                    res_cap_val_mobj.move_to(line_part.get_center()).rotate(line_part.get_angle())
-                    offset_vector_rev = rotate_vector(line_part.get_unit_vector(), PI / 2) * 0.15
-                    res_cap_val_mobj.shift(offset_vector_rev).set_z_index(6)
-
-                    self.edge_residual_capacity_mobjects[current_edge_tuple] = res_cap_val_mobj
-                    self.base_label_visual_attrs[current_edge_tuple] = {"opacity": 0.0}
-
-                    pure_rev_label_group = VGroup(res_cap_val_mobj)
-                    pure_rev_label_group.set_opacity(0.0)
-                    self.edge_label_groups[current_edge_tuple] = pure_rev_label_group
-                    all_edge_labels_vgroup.add(pure_rev_label_group)
-
 
         if capacities_to_animate_write: self.play(LaggedStart(*[Write(c) for c in capacities_to_animate_write], lag_ratio=0.05), run_time=1.2); self.wait(0.5)
         if flow_slashes_to_animate_write: self.play(LaggedStart(*[Write(fs_group) for fs_group in flow_slashes_to_animate_write], lag_ratio=0.05), run_time=1.2); self.wait(0.5)
@@ -793,25 +786,6 @@ class DinitzAlgorithmVisualizer(Scene):
             self.sink_action_text_mobj.next_to(source_node_dot, UP, buff=BUFF_SMALL)
         else: # Fallback position
             self.sink_action_text_mobj.to_corner(UL, buff=BUFF_MED) 
-
-        # Ensure initial opacities are correctly set, especially for REVERSE_EDGE_OPACITY = 0
-        for edge_key, edge_mo in self.edge_mobjects.items():
-            base_attrs_edge = self.base_edge_visual_attrs.get(edge_key)
-            if base_attrs_edge:
-                current_opacity = base_attrs_edge["opacity"]
-                if edge_key not in self.original_edge_tuples and REVERSE_EDGE_OPACITY == 0.0:
-                    current_opacity = 0.0 # Make fully transparent if configured
-                edge_mo.set_opacity(current_opacity) 
-
-            label_grp = self.edge_label_groups.get(edge_key)
-            if label_grp: 
-                base_attrs_label = self.base_label_visual_attrs.get(edge_key)
-                if base_attrs_label:
-                    label_grp.set_opacity(base_attrs_label["opacity"])
-                elif edge_key in self.original_edge_tuples: 
-                    label_grp.set_opacity(1.0)
-                else: 
-                    label_grp.set_opacity(0.0)
 
         # Determine scaled height for flow text labels for consistency
         sample_text_mobj = None
