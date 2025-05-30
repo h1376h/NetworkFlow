@@ -56,7 +56,7 @@ FLOW_PULSE_WIDTH_FACTOR = 1.8
 FLOW_PULSE_TIME_WIDTH = 0.35  # Proportion of edge length lit up by flash
 FLOW_PULSE_EDGE_RUNTIME = 0.5 # Time for pulse to traverse one edge
 FLOW_PULSE_Z_INDEX_OFFSET = 10
-EDGE_UPDATE_RUNTIME = 0.3          # Time for text/visual updates after pulse on an edge
+EDGE_UPDATE_RUNTIME = 0.3         # Time for text/visual updates after pulse on an edge
 
 # --- Sink Action Text States ---
 SINK_ACTION_STATES = {
@@ -216,7 +216,7 @@ class DinitzAlgorithmVisualizer(Scene):
             # Transition: from empty string to new text
             elif not old_text_str and new_text_str:
                 self.remove(current_mobj) # Remove the old empty placeholder
-                self.add(target_mobj)     # Add the new mobject
+                self.add(target_mobj)      # Add the new mobject
                 self.play(FadeIn(target_mobj, run_time=0.3))
             # Transition: from one text to another
             else: # old_text_str and new_text_str
@@ -269,9 +269,9 @@ class DinitzAlgorithmVisualizer(Scene):
 
             # Check if this edge is a valid Level Graph edge (and destination is not a dead end)
             is_valid_lg_edge = (edge_mo_cand and
-                                  self.levels.get(v_candidate, -1) == self.levels.get(u, -1) + 1 and
-                                  res_cap_cand > 0 and
-                                  v_candidate not in self.dead_nodes_in_phase) # IMPROVEMENT: Check against dead nodes
+                                    self.levels.get(v_candidate, -1) == self.levels.get(u, -1) + 1 and
+                                    res_cap_cand > 0 and
+                                    v_candidate not in self.dead_nodes_in_phase) # IMPROVEMENT: Check against dead nodes
 
             if is_valid_lg_edge:
                 actual_v = v_candidate
@@ -487,7 +487,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 # Animations for edge (u,v) appearance change post-augmentation
                 res_cap_after_uv = self.capacities.get((u,v),0) - self.flow.get((u,v),0)
                 is_still_lg_edge_uv = (self.levels.get(u,-1)!=-1 and self.levels.get(v,-1)!=-1 and \
-                                         self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 and v not in self.dead_nodes_in_phase )
+                                             self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 and v not in self.dead_nodes_in_phase )
                 if not is_still_lg_edge_uv: # Edge is saturated or no longer LG
                     visual_updates_this_edge.append(edge_mo.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR, width=EDGE_STROKE_WIDTH))
                     if (u,v) not in self.original_edge_tuples: # Hide residual label if non-original
@@ -741,7 +741,8 @@ class DinitzAlgorithmVisualizer(Scene):
                     dashed_line = DashedVMobject(line_part, num_dashes=12, dashed_ratio=0.6)
                     
                     # 3. The final mobject is a VGroup of the new dashed line and the original tip.
-                    rev_arrow = VGroup(dashed_line, tip_part)
+                    #    Both are colored with REVERSE_EDGE_COLOR to ensure they match.
+                    rev_arrow = VGroup(dashed_line, tip_part).set_color(REVERSE_EDGE_COLOR)
                     rev_arrow.set_z_index(REVERSE_EDGE_Z_INDEX)
                     # --- END OF FIX ---
                     
