@@ -11,7 +11,7 @@ ARROW_TIP_LENGTH = 0.16
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
 PHASE_TEXT_FONT_SIZE = 22      # For text below section title
-STATUS_TEXT_FONT_SIZE = 20      # For text below phase title
+STATUS_TEXT_FONT_SIZE = 20     # For text below phase title
 NODE_LABEL_FONT_SIZE = 16
 EDGE_CAPACITY_LABEL_FONT_SIZE = 12 # Used for original edges
 EDGE_FLOW_PREFIX_FONT_SIZE = 12    # Used for original edges & pure reverse residual
@@ -52,7 +52,7 @@ FLOW_PULSE_WIDTH_FACTOR = 1.8
 FLOW_PULSE_TIME_WIDTH = 0.35  # Proportion of edge length lit up by flash
 FLOW_PULSE_EDGE_RUNTIME = 0.5 # Time for pulse to traverse one edge
 FLOW_PULSE_Z_INDEX_OFFSET = 10
-EDGE_UPDATE_RUNTIME = 0.3       # Time for text/visual updates after pulse on an edge
+EDGE_UPDATE_RUNTIME = 0.3        # Time for text/visual updates after pulse on an edge
 
 # --- Sink Action Text States ---
 SINK_ACTION_STATES = {
@@ -349,7 +349,9 @@ class DinitzAlgorithmVisualizer(Scene):
         self.update_status_text(f"Retreat: All edges from {u_display_name} explored. Node is a dead end.", color=ORANGE, play_anim=False)
         self.wait(2.0)
 
-        # --- IMPROVEMENT: Explicitly mark 'u' as a dead end and "delete" it from the LG for this phase ---
+        # --- DINIC'S LOGIC: "Delete" a node from the LG for this phase once it's a dead end. ---
+        # This is implemented by adding the node to a 'dead_nodes_in_phase' set.
+        # Future attempts to enter this node during this phase's DFS will be blocked.
         if u != self.source_node: # The source node is never a dead end
             self.dead_nodes_in_phase.add(u)
             u_dot, u_lbl = self.node_mobjects[u]
@@ -374,7 +376,7 @@ class DinitzAlgorithmVisualizer(Scene):
         # to form a blocking flow. Animates path discovery, bottleneck calculation, and flow augmentation.
         
         self.ptr = {v_id: 0 for v_id in self.vertices_data} # Pointers for Dinic's DFS optimization
-        self.dead_nodes_in_phase = set() # IMPROVEMENT: Tracks dead-end nodes for this phase
+        self.dead_nodes_in_phase = set() # Tracks dead-end nodes for this phase. This is reset for each new phase.
         total_flow_this_phase = 0
         path_count_this_phase = 0
         self.dfs_traversal_highlights = VGroup().set_z_index(RING_Z_INDEX + 1) # Group for DFS node highlights
@@ -502,13 +504,12 @@ class DinitzAlgorithmVisualizer(Scene):
                 if (v,u) in self.edge_mobjects:
                     rev_edge_mo_vu = self.edge_mobjects[(v,u)]
                     res_cap_vu = self.capacities.get((v,u),0) - self.flow.get((v,u),0) 
-                    is_rev_edge_in_lg_vu = (self.levels.get(v,-1)!=-1 and self.levels.get(u,-1)!=-1 and \
-                                            self.levels[u]==self.levels[v]+1 and res_cap_vu > 0 and u not in self.dead_nodes_in_phase) 
 
-                    if is_rev_edge_in_lg_vu: # Reverse edge becomes part of LG
-                        lg_color_vu = LEVEL_COLORS[self.levels[v]%len(LEVEL_COLORS)]
-                        visual_updates_this_edge.append(rev_edge_mo_vu.animate.set_stroke(opacity=1.0, width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH).set_color(lg_color_vu))
-                    elif res_cap_vu > 0 : # Reverse edge has capacity but not LG
+                    # CORRECTED LOGIC: A reverse edge (v,u) goes from a higher level to a lower level (e.g., L+1 -> L),
+                    # so it cannot be part of the current Level Graph, which only has edges from L -> L+1.
+                    # We just update its visual state based on its new residual capacity.
+
+                    if res_cap_vu > 0 : # Reverse edge now has capacity, show it as a standard residual edge.
                         base_attrs_vu_edge = self.base_edge_visual_attrs.get((v,u),{})
                         opacity_vu = 0.7 if (v,u) in self.original_edge_tuples else base_attrs_vu_edge.get("opacity", REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0)
                         color_vu = GREY_A if (v,u) in self.original_edge_tuples else base_attrs_vu_edge.get("color", REVERSE_EDGE_COLOR)
@@ -521,15 +522,8 @@ class DinitzAlgorithmVisualizer(Scene):
                     if (v,u) not in self.original_edge_tuples: # Handle label for non-original reverse edge
                         label_mobj_vu = self.edge_residual_capacity_mobjects.get((v,u))
                         if label_mobj_vu:
-                            if is_rev_edge_in_lg_vu: 
-                                lg_color_vu_label = LEVEL_COLORS[self.levels[v]%len(LEVEL_COLORS)]
-                                target_label_vu = Text(f"{res_cap_vu:.0f}", font=label_mobj_vu.font, font_size=label_mobj_vu.font_size, color=lg_color_vu_label)
-                                target_label_vu.move_to(label_mobj_vu.get_center()).set_opacity(1.0)
-                                if hasattr(self, 'scaled_flow_text_height') and self.scaled_flow_text_height:
-                                    target_label_vu.height = self.scaled_flow_text_height * 0.9
-                                text_updates_this_edge.append(label_mobj_vu.animate.become(target_label_vu))
-                            else: 
-                                visual_updates_this_edge.append(label_mobj_vu.animate.set_opacity(0.0)) 
+                            # Hide the label for the reverse residual edge as it's not part of the active LG search.
+                            visual_updates_this_edge.append(label_mobj_vu.animate.set_opacity(0.0)) 
                     else: # Handle flow text for original reverse edge
                         old_rev_flow_text_mobj = self.edge_flow_val_text_mobjects.get((v,u))
                         if old_rev_flow_text_mobj: 
@@ -543,9 +537,7 @@ class DinitzAlgorithmVisualizer(Scene):
                         # Update opacity of the full label group for original reverse edges
                         rev_label_grp_vu = self.edge_label_groups.get((v,u))
                         if rev_label_grp_vu and rev_label_grp_vu.submobjects: 
-                            if is_rev_edge_in_lg_vu: 
-                                for part in rev_label_grp_vu.submobjects: visual_updates_this_edge.append(part.animate.set_opacity(1.0).set_color(LABEL_TEXT_COLOR)) 
-                            elif res_cap_vu > 0: 
+                            if res_cap_vu > 0: 
                                 for part in rev_label_grp_vu.submobjects: visual_updates_this_edge.append(part.animate.set_opacity(0.7)) 
                             else: 
                                 base_lbl_attrs = self.base_label_visual_attrs.get((v,u))
@@ -829,7 +821,10 @@ class DinitzAlgorithmVisualizer(Scene):
             self.update_status_text(f"BFS from S (Node {self.source_node}) to find shortest paths in the residual graph.", play_anim=True)
             self.wait(3.0) 
 
-            # BFS to build Level Graph
+            # --- KEY CONCEPT: Building the Level Graph ---
+            # At the start of each phase, a NEW level graph is built from scratch using BFS
+            # on the CURRENT residual graph. Any "deletions" from the previous phase are forgotten.
+            # This ensures we always find the shortest augmenting paths in the current state of the network.
             self.levels = {v_id: -1 for v_id in self.vertices_data} # Stores level of each node
             q_bfs = collections.deque()
             self.levels[self.source_node] = 0; q_bfs.append(self.source_node)
