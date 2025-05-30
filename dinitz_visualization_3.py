@@ -49,9 +49,7 @@ REVERSE_EDGE_Z_INDEX = 4
 
 # This will place the normal edge "above" (in the direction of the perpendicular vector)
 # and the reverse edge "below".
-DEFAULT_EDGE_SHIFT_AMOUNT = 0.1
-REVERSE_EDGE_SHIFT_AMOUNT = -0.1
-ARROW_OFFSET_FROM_NODE = 0.01
+EDGE_SHIFT_AMOUNT = 0.15 # Single value for shifting, used as + and -
 
 # Flow pulse animation constants
 FLOW_PULSE_COLOR = BLUE_B
@@ -59,7 +57,7 @@ FLOW_PULSE_WIDTH_FACTOR = 1.8
 FLOW_PULSE_TIME_WIDTH = 0.35  # Proportion of edge length lit up by flash
 FLOW_PULSE_EDGE_RUNTIME = 0.5 # Time for pulse to traverse one edge
 FLOW_PULSE_Z_INDEX_OFFSET = 10
-EDGE_UPDATE_RUNTIME = 0.3         # Time for text/visual updates after pulse on an edge
+EDGE_UPDATE_RUNTIME = 0.3          # Time for text/visual updates after pulse on an edge
 
 # --- Sink Action Text States ---
 SINK_ACTION_STATES = {
@@ -70,6 +68,46 @@ SINK_ACTION_STATES = {
 }
 
 class DinitzAlgorithmVisualizer(Scene):
+
+    def _create_edge_arrow(
+        self,
+        start_node_mob: VGroup,
+        end_node_mob: VGroup,
+        start_pos_override=None,
+        end_pos_override=None,
+        tip_length=ARROW_TIP_LENGTH,
+        color=DEFAULT_EDGE_COLOR,
+        stroke_width=EDGE_STROKE_WIDTH
+    ):
+        """
+        Creates an Arrow mobject between two nodes, ensuring the arrowhead
+        stops precisely at the node's border.
+        """
+        start_dot = start_node_mob[0]
+        end_dot = end_node_mob[0]
+
+        start_pos = start_pos_override if start_pos_override is not None else start_dot.get_center()
+        end_pos = end_pos_override if end_pos_override is not None else end_dot.get_center()
+
+        if np.linalg.norm(end_pos - start_pos) < 1e-6:
+            return VGroup() # Return an empty mobject if nodes are at the same position
+
+        direction = normalize(end_pos - start_pos)
+        start_buffer = start_dot.width / 2
+        end_buffer = end_dot.width / 2
+
+        line_start_point = start_pos + direction * start_buffer
+        line_end_point = end_pos - direction * end_buffer
+
+        return Arrow(
+            line_start_point,
+            line_end_point,
+            buff=0,
+            stroke_width=stroke_width,
+            color=color,
+            tip_length=tip_length,
+            z_index=5
+        )
 
     def setup_titles_and_placeholders(self):
         # Initializes main title, section title, phase text, status text, and max flow display mobjects.
@@ -219,7 +257,7 @@ class DinitzAlgorithmVisualizer(Scene):
             # Transition: from empty string to new text
             elif not old_text_str and new_text_str:
                 self.remove(current_mobj) # Remove the old empty placeholder
-                self.add(target_mobj)     # Add the new mobject
+                self.add(target_mobj)      # Add the new mobject
                 self.play(FadeIn(target_mobj, run_time=0.3))
             # Transition: from one text to another
             else: # old_text_str and new_text_str
@@ -357,8 +395,6 @@ class DinitzAlgorithmVisualizer(Scene):
         self.wait(2.0)
 
         # --- DINIC'S LOGIC: "Delete" a node from the LG for this phase once it's a dead end. ---
-        # This is implemented by adding the node to a 'dead_nodes_in_phase' set.
-        # Future attempts to enter this node during this phase's DFS will be blocked.
         if u != self.source_node: # The source node is never a dead end
             self.dead_nodes_in_phase.add(u)
             u_dot, u_lbl = self.node_mobjects[u]
@@ -372,13 +408,11 @@ class DinitzAlgorithmVisualizer(Scene):
             ]
             self.play(*anims_dead_node, run_time=0.5)
             self.wait(1.0)
-        # --- END OF IMPROVEMENT ---
 
         self.play(FadeOut(highlight_ring), run_time=0.15)
         if highlight_ring in self.dfs_traversal_highlights: self.dfs_traversal_highlights.remove(highlight_ring)
         return 0 # No path found from u
 
-    
     def animate_dfs_path_finding_phase(self):
         # Manages the DFS phase of Dinitz's algorithm: finding multiple s-t paths in the Level Graph (LG)
         # to form a blocking flow. Animates path discovery, bottleneck calculation, and flow augmentation.
@@ -416,40 +450,31 @@ class DinitzAlgorithmVisualizer(Scene):
 
             current_path_anim_info.reverse() # Path is built from T to S, reverse for S to T animation
 
-            # --- DYNAMIC REVERSE EDGE CREATION ---
+            # --- DYNAMIC REVERSE EDGE CREATION (REVISED) ---
             pre_augment_animations = []
             for (u, v), _, _, _, _ in current_path_anim_info:
+                # Check if a reverse edge (v, u) needs to be created visually
                 if (v, u) not in self.edge_mobjects:
-                    # 1. Get geometry & shifted centers
                     n_u_dot, n_v_dot = self.node_mobjects[u][0], self.node_mobjects[v][0]
                     u_center, v_center = n_u_dot.get_center(), n_v_dot.get_center()
-                    perp_vector = rotate_vector(normalize(v_center - u_center), PI / 2)
 
-                    rev_shift_vector = perp_vector * REVERSE_EDGE_SHIFT_AMOUNT
+                    perp_vector = rotate_vector(normalize(v_center - u_center), PI / 2)
+                    fwd_shift_vector = perp_vector * EDGE_SHIFT_AMOUNT
+                    rev_shift_vector = perp_vector * -EDGE_SHIFT_AMOUNT
+
                     rev_start_node_center = v_center + rev_shift_vector
                     rev_end_node_center = u_center + rev_shift_vector
 
-                    # 2. FIX: Manually calculate start and end points to avoid overlap.
-                    # Use the CURRENT (scaled) radius of the node for the buffer calculation.
-                    scaled_node_radius = n_u_dot.width / 2.0
-                    rev_direction = normalize(rev_end_node_center - rev_start_node_center)
-
-                    # Define start and end points for the arrow's line segment
-                    rev_start_point = rev_start_node_center + rev_direction * scaled_node_radius
-                    rev_end_point = rev_end_node_center - rev_direction * (scaled_node_radius + REVERSE_ARROW_TIP_LENGTH)
-
-                    base_arrow_rev = Arrow(
-                        rev_start_point, rev_end_point,
-                        buff=0, # Buffering is now handled manually
-                        stroke_width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR,
+                    base_arrow_rev = self._create_edge_arrow(
+                        self.node_mobjects[v], self.node_mobjects[u],
+                        start_pos_override=rev_start_node_center,
+                        end_pos_override=rev_end_node_center,
+                        tip_length=REVERSE_ARROW_TIP_LENGTH,
                         color=REVERSE_EDGE_COLOR,
-                        tip_length=REVERSE_ARROW_TIP_LENGTH
+                        stroke_width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR
                     )
 
-                    # 3. Create the final dashed mobject from the temporary arrow's parts
-                    # The line of an Arrow is its first submobject, and the tip is the second.
-                    original_line_part = base_arrow_rev[0]
-                    dashed_line_rev = DashedVMobject(original_line_part, num_dashes=12, dashed_ratio=0.6)
+                    dashed_line_rev = DashedVMobject(base_arrow_rev[0], num_dashes=12, dashed_ratio=0.6)
                     rev_arrow = VGroup(dashed_line_rev, base_arrow_rev.tip)
                     rev_arrow.set_z_index(REVERSE_EDGE_Z_INDEX).set_color(REVERSE_EDGE_COLOR).set_opacity(0)
 
@@ -457,12 +482,12 @@ class DinitzAlgorithmVisualizer(Scene):
                     self.base_edge_visual_attrs[(v, u)] = {
                         "color": rev_arrow.get_color(),
                         "stroke_width": rev_arrow.get_stroke_width(),
-                        "opacity": REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0
+                        "opacity": REVERSE_EDGE_OPACITY
                     }
 
                     res_cap_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR, opacity=0.0)
-                    res_cap_mobj.move_to(dashed_line_rev.get_center()).rotate(original_line_part.get_angle())
-                    offset_vec_lbl = rotate_vector(original_line_part.get_unit_vector(), PI / 2) * 0.15
+                    res_cap_mobj.move_to(dashed_line_rev.get_center()).rotate(base_arrow_rev[0].get_angle())
+                    offset_vec_lbl = rotate_vector(base_arrow_rev[0].get_unit_vector(), PI / 2) * 0.15
                     res_cap_mobj.shift(offset_vec_lbl).set_z_index(6)
 
                     self.edge_residual_capacity_mobjects[(v,u)] = res_cap_mobj
@@ -472,16 +497,12 @@ class DinitzAlgorithmVisualizer(Scene):
                     self.network_display_group.add(rev_arrow, res_cap_mobj)
                     self.add(rev_arrow, res_cap_mobj)
 
-                    # 4. Prepare animations for shifting forward edge and fading in reverse edge
                     forward_edge_mo = self.edge_mobjects[(u, v)]
                     forward_label = self.edge_label_groups.get((u, v))
-                    fwd_shift_vector = perp_vector * DEFAULT_EDGE_SHIFT_AMOUNT
 
                     anim_fwd_edge = forward_edge_mo.animate.shift(fwd_shift_vector)
                     anim_fwd_label = forward_label.animate.shift(fwd_shift_vector) if forward_label else AnimationGroup()
-
-                    final_opacity = REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0
-                    anim_rev_edge = rev_arrow.animate.set_opacity(final_opacity)
+                    anim_rev_edge = rev_arrow.animate.set_opacity(REVERSE_EDGE_OPACITY)
 
                     pre_augment_animations.append(AnimationGroup(anim_fwd_edge, anim_fwd_label, anim_rev_edge))
 
@@ -564,7 +585,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 # Animations for edge (u,v) appearance change post-augmentation
                 res_cap_after_uv = self.capacities.get((u,v),0) - self.flow.get((u,v),0)
                 is_still_lg_edge_uv = (self.levels.get(u,-1)!=-1 and self.levels.get(v,-1)!=-1 and \
-                                    self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 and v not in self.dead_nodes_in_phase )
+                                       self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 and v not in self.dead_nodes_in_phase )
                 if not is_still_lg_edge_uv: # Edge is saturated or no longer LG
                     visual_updates_this_edge.append(edge_mo.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR, width=EDGE_STROKE_WIDTH))
                     if (u,v) not in self.original_edge_tuples: # Hide residual label if non-original
@@ -588,7 +609,7 @@ class DinitzAlgorithmVisualizer(Scene):
 
                     if res_cap_vu > 0 : # Reverse edge now has capacity, show it as a standard residual edge.
                         base_attrs_vu_edge = self.base_edge_visual_attrs.get((v,u),{})
-                        opacity_vu = 0.7 if (v,u) in self.original_edge_tuples else base_attrs_vu_edge.get("opacity", REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0)
+                        opacity_vu = 0.7 if (v,u) in self.original_edge_tuples else base_attrs_vu_edge.get("opacity", REVERSE_EDGE_OPACITY)
                         color_vu = GREY_A if (v,u) in self.original_edge_tuples else base_attrs_vu_edge.get("color", REVERSE_EDGE_COLOR)
                         width_vu = EDGE_STROKE_WIDTH if (v,u) in self.original_edge_tuples else base_attrs_vu_edge.get("stroke_width", EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR)
                         visual_updates_this_edge.append(rev_edge_mo_vu.animate.set_stroke(opacity=opacity_vu, width=width_vu, color=color_vu))
@@ -630,28 +651,20 @@ class DinitzAlgorithmVisualizer(Scene):
                     )
                     animations_for_current_edge_step.append(update_group_for_this_edge)
 
-                # Add the sequence for this edge (pulse then updates) to the main path sequence
-                # lag_ratio=1.0 means updates start after pulse for this specific edge.
                 path_augmentation_sequence.append(Succession(*animations_for_current_edge_step, lag_ratio=1.0))
 
             if path_augmentation_sequence:
-                # Play the sequence for each edge one after another.
-                # lag_ratio=1.0 means the next edge's pulse starts after the current edge's updates are done.
                 self.play(Succession(*path_augmentation_sequence, lag_ratio=1.0))
-                self.wait(0.5) # Wait after the entire path augmentation is animated
-            # --- END OF COMBINED ANIMATION ---
+                self.wait(0.5)
 
             self.update_max_flow_display(play_anim=True) # Update total flow display
             self.wait(0.5)
-
             self._update_sink_action_text("nothing", animate=True) # Clear "augment" text
-
             self.update_status_text(f"Flow augmented. Current phase flow: {total_flow_this_phase:.1f}. Searching for next path...", color=WHITE, play_anim=True)
             self.wait(2.5)
 
         if self.dfs_traversal_highlights.submobjects: # Clean up any remaining DFS highlights
             self.play(FadeOut(self.dfs_traversal_highlights), run_time=0.2)
-
         if self.sink_action_text_mobj.text != "": # Clear sink action text if any
             self._update_sink_action_text("nothing", animate=True)
 
@@ -723,28 +736,12 @@ class DinitzAlgorithmVisualizer(Scene):
         edges_vgroup = VGroup()
         edge_grow_anims = []
         for u, v, cap in self.edges_with_capacity_list:
-            n_u_dot = self.node_mobjects[u][0]
-            n_v_dot = self.node_mobjects[v][0]
-
-            # --- FIX: Manually calculate start and end points to prevent overlap ---
-            # This avoids using 'buff', which creates a gap at the arrow's start,
-            # and ensures the arrowhead tip stops precisely at the node's edge.
-            start_node_center = n_u_dot.get_center()
-            end_node_center = n_v_dot.get_center()
-            direction = normalize(end_node_center - start_node_center)
-
-            # The start of the arrow's line is on the source node's circumference.
-            start_point = start_node_center + direction * (NODE_RADIUS + ARROW_OFFSET_FROM_NODE)
-            # The end of the arrow's line is pulled back from the destination
-            end_point = end_node_center - direction * (NODE_RADIUS + ARROW_OFFSET_FROM_NODE)
-
-            arrow = Arrow(
-                start_point, end_point,
-                buff=0,  # Buffering is now handled manually by calculating points.
-                stroke_width=EDGE_STROKE_WIDTH,
-                color=DEFAULT_EDGE_COLOR,
+            arrow = self._create_edge_arrow(
+                self.node_mobjects[u],
+                self.node_mobjects[v],
                 tip_length=ARROW_TIP_LENGTH,
-                z_index=5
+                color=DEFAULT_EDGE_COLOR,
+                stroke_width=EDGE_STROKE_WIDTH
             )
             self.edge_mobjects[(u, v)] = arrow
             edges_vgroup.add(arrow)
@@ -1040,7 +1037,7 @@ class DinitzAlgorithmVisualizer(Scene):
                         target_color = DIMMED_COLOR
                         target_width = base_edge_attrs_local.get("stroke_width", EDGE_STROKE_WIDTH)
                         if (u_lg,v_lg) not in self.original_edge_tuples:
-                            current_base_opacity = base_edge_attrs_local.get("opacity", REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0)
+                            current_base_opacity = base_edge_attrs_local.get("opacity", REVERSE_EDGE_OPACITY)
                             if REVERSE_EDGE_OPACITY == 0.0: target_opacity = 0.0
                             else: target_opacity = min(current_base_opacity, DIMMED_OPACITY) if current_base_opacity > 0 else DIMMED_OPACITY
                             target_color = base_edge_attrs_local.get("color", REVERSE_EDGE_COLOR)
