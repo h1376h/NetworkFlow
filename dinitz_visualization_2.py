@@ -11,7 +11,7 @@ ARROW_TIP_LENGTH = 0.16
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
 PHASE_TEXT_FONT_SIZE = 22      # For text below section title
-STATUS_TEXT_FONT_SIZE = 20     # For text below phase title
+STATUS_TEXT_FONT_SIZE = 20      # For text below phase title
 NODE_LABEL_FONT_SIZE = 16
 EDGE_CAPACITY_LABEL_FONT_SIZE = 12 # Used for original edges
 EDGE_FLOW_PREFIX_FONT_SIZE = 12    # Used for original edges & pure reverse residual
@@ -45,7 +45,9 @@ REVERSE_EDGE_COLOR = GREY_B
 REVERSE_EDGE_OPACITY = 0.25
 REVERSE_EDGE_STROKE_WIDTH_FACTOR = 0.6
 REVERSE_EDGE_Z_INDEX = -1
-REVERSE_EDGE_SHIFT_AMOUNT = 0.15 # Controls offset of reverse edges
+
+DEFAULT_EDGE_SHIFT_AMOUNT = -0.08 # Controls offset of default edges from the center line
+REVERSE_EDGE_SHIFT_AMOUNT = 0.08 # Controls offset of reverse edges from the center line
 
 # Flow pulse animation constants
 FLOW_PULSE_COLOR = BLUE_B
@@ -144,7 +146,7 @@ class DinitzAlgorithmVisualizer(Scene):
             self._animate_text_update(old_mobj, new_mobj, new_text_content)
         else: # If not animating, just add if it's new content and not already present
             is_empty_new_content = (isinstance(new_mobj, Text) and new_mobj.text == "") or \
-                                   (isinstance(new_mobj, Tex) and new_mobj.tex_string == "")
+                                     (isinstance(new_mobj, Tex) and new_mobj.tex_string == "")
             is_in_group = new_mobj in self.info_texts_group.submobjects
 
             if not is_empty_new_content:
@@ -266,9 +268,9 @@ class DinitzAlgorithmVisualizer(Scene):
 
             # Check if this edge is a valid Level Graph edge (and destination is not a dead end)
             is_valid_lg_edge = (edge_mo_cand and
-                                self.levels.get(v_candidate, -1) == self.levels.get(u, -1) + 1 and
-                                res_cap_cand > 0 and
-                                v_candidate not in self.dead_nodes_in_phase) # IMPROVEMENT: Check against dead nodes
+                                  self.levels.get(v_candidate, -1) == self.levels.get(u, -1) + 1 and
+                                  res_cap_cand > 0 and
+                                  v_candidate not in self.dead_nodes_in_phase) # IMPROVEMENT: Check against dead nodes
 
             if is_valid_lg_edge:
                 actual_v = v_candidate
@@ -484,7 +486,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 # Animations for edge (u,v) appearance change post-augmentation
                 res_cap_after_uv = self.capacities.get((u,v),0) - self.flow.get((u,v),0)
                 is_still_lg_edge_uv = (self.levels.get(u,-1)!=-1 and self.levels.get(v,-1)!=-1 and \
-                                       self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 and v not in self.dead_nodes_in_phase )
+                                         self.levels[v]==self.levels[u]+1 and res_cap_after_uv > 0 and v not in self.dead_nodes_in_phase )
                 if not is_still_lg_edge_uv: # Edge is saturated or no longer LG
                     visual_updates_this_edge.append(edge_mo.animate.set_stroke(opacity=DIMMED_OPACITY, color=DIMMED_COLOR, width=EDGE_STROKE_WIDTH))
                     if (u,v) not in self.original_edge_tuples: # Hide residual label if non-original
@@ -648,7 +650,32 @@ class DinitzAlgorithmVisualizer(Scene):
         edge_grow_anims = []
         for u,v,cap in self.edges_with_capacity_list: 
             n_u_dot = self.node_mobjects[u][0]; n_v_dot = self.node_mobjects[v][0]
-            arrow = Arrow(n_u_dot.get_center(), n_v_dot.get_center(), buff=NODE_RADIUS, stroke_width=EDGE_STROKE_WIDTH, color=DEFAULT_EDGE_COLOR, max_tip_length_to_length_ratio=0.2, tip_length=ARROW_TIP_LENGTH, z_index=0)
+            
+            # --- FIX: Add offset to default edges for better visualization ---
+            u_center, v_center = n_u_dot.get_center(), n_v_dot.get_center()
+            direction_vector = v_center - u_center
+            unit_direction = normalize(direction_vector)
+            
+            # Shift perpendicular to the edge direction.
+            # We shift default and reverse edges in opposite directions for clarity.
+            perp_vector = rotate_vector(unit_direction, PI / 2)
+            offset = perp_vector * -DEFAULT_EDGE_SHIFT_AMOUNT # Use negative for one side
+            
+            # Calculate start and end points including the node radius buffer and the offset
+            buffered_start = u_center + offset + unit_direction * NODE_RADIUS
+            buffered_end = v_center + offset - unit_direction * NODE_RADIUS
+
+            arrow = Arrow(
+                buffered_start, buffered_end,
+                buff=0, # Buffering is now handled manually
+                stroke_width=EDGE_STROKE_WIDTH, 
+                color=DEFAULT_EDGE_COLOR, 
+                max_tip_length_to_length_ratio=0.2, 
+                tip_length=ARROW_TIP_LENGTH, 
+                z_index=0
+            )
+            # --- END OF FIX ---
+
             self.edge_mobjects[(u,v)] = arrow; edges_vgroup.add(arrow)
             edge_grow_anims.append(GrowArrow(arrow))
         self.play(LaggedStart(*edge_grow_anims, lag_ratio=0.05), run_time=1.5)
@@ -687,53 +714,43 @@ class DinitzAlgorithmVisualizer(Scene):
                     n_u_dot = self.node_mobjects[u_node][0]
                     n_v_dot = self.node_mobjects[v_node][0]
 
-                    # --- CORRECTED LOGIC: Create Offset and Dashed Reverse Edges ---
-                    # 1. Calculate offset vector and buffered start/end points
-                    u_center = n_u_dot.get_center()
-                    v_center = n_v_dot.get_center()
+                    # --- FIX: Create Offset/Dashed Arrow with an IDENTICAL arrowhead shape ---
+                    u_center, v_center = n_u_dot.get_center(), n_v_dot.get_center()
                     direction_vector = v_center - u_center
-                    
-                    perp_vector = rotate_vector(normalize(direction_vector), PI / 2)
-                    offset = perp_vector * REVERSE_EDGE_SHIFT_AMOUNT
-                    
                     unit_direction = normalize(direction_vector)
+                    
+                    # Apply offset in the opposite direction of the default edge for a parallel effect
+                    perp_vector = rotate_vector(unit_direction, PI / 2)
+                    offset = perp_vector * REVERSE_EDGE_SHIFT_AMOUNT # Use positive for the other side
+                    
                     buffered_start = u_center + offset + unit_direction * NODE_RADIUS
                     buffered_end = v_center + offset - unit_direction * NODE_RADIUS
 
-                    # 2. Create the line part and then make it dashed
-                    line_part = Line(
-                        buffered_start, buffered_end,
+                    # 1. Create a standard Arrow. Its tip will have the correct shape and size.
+                    base_arrow = Arrow(
+                        buffered_start, buffered_end, buff=0,
                         stroke_width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR,
-                        color=REVERSE_EDGE_COLOR
+                        color=REVERSE_EDGE_COLOR,
+                        tip_length=ARROW_TIP_LENGTH # Use the same global constant
                     )
+                    
+                    # 2. Extract the line and tip by index. Create a dashed version of the line.
+                    line_part = base_arrow[0]
+                    tip_part = base_arrow[1]
                     dashed_line = DashedVMobject(line_part, num_dashes=12, dashed_ratio=0.6)
                     
-                    # 3. Create and position the arrowhead
-                    tip = ArrowTriangleTip( # Use the concrete class ArrowTriangleTip
-                        length=ARROW_TIP_LENGTH * 0.8,
-                        stroke_width=line_part.get_stroke_width(),
-                        color=line_part.get_color()
-                    )
-                    tip.rotate(line_part.get_angle() + PI)
-                    tip.move_to(line_part.get_end())
-
-                    # Adjust length to match standard arrow tip
-                    tip.set_width(tip.get_width() * (ARROW_TIP_LENGTH * 0.8) / tip.get_length())
-
-                    # 4. The final mobject is a VGroup of the dashed line and the tip
-                    rev_arrow = VGroup(dashed_line, tip)
+                    # 3. The final mobject is a VGroup of the new dashed line and the original tip.
+                    rev_arrow = VGroup(dashed_line, tip_part)
                     rev_arrow.set_z_index(REVERSE_EDGE_Z_INDEX)
-                    # --- END OF CORRECTED LOGIC ---
+                    # --- END OF FIX ---
                     
                     rev_arrow.set_opacity(REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0)
                     self.edge_mobjects[current_edge_tuple] = rev_arrow
                     edges_vgroup.add(rev_arrow)
 
-                    # Residual capacity label, positioned relative to the new dashed edge
+                    # Residual capacity label, positioned relative to the new dashed edge's line part
                     res_cap_val_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR, opacity=0.0)
-                    # Position the label based on the geometry of the base line part
                     res_cap_val_mobj.move_to(line_part.get_center()).rotate(line_part.get_angle())
-                    # Offset the label perpendicularly from the edge
                     offset_vector_rev = rotate_vector(line_part.get_unit_vector(), PI / 2) * 0.15
                     res_cap_val_mobj.shift(offset_vector_rev).set_z_index(1)
 
@@ -958,7 +975,7 @@ class DinitzAlgorithmVisualizer(Scene):
                                         anim = part.animate.set_opacity(1.0)
                                         if isinstance(part, Text): anim = part.animate.set_opacity(1.0).set_color(LABEL_TEXT_COLOR)
                                         bfs_anims_this_step.append(anim)
-                    self.play(FadeOut(ind_u), run_time=0.20) 
+                self.play(FadeOut(ind_u), run_time=0.20) 
 
                 if bfs_anims_this_step: self.play(AnimationGroup(*bfs_anims_this_step, lag_ratio=0.1), run_time=0.8); self.wait(0.5)
                 
@@ -1061,49 +1078,6 @@ class DinitzAlgorithmVisualizer(Scene):
         else:
             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
         self.wait(5.0)
-
-        # --- Final Emphasis Flash Animation ---
-        if hasattr(self, 'node_mobjects') and self.node_mobjects and \
-           hasattr(self, 'source_node') and hasattr(self, 'sink_node') and \
-           self.source_node in self.node_mobjects and self.sink_node in self.node_mobjects:
-
-            source_dot = self.node_mobjects[self.source_node][0]
-            sink_dot = self.node_mobjects[self.sink_node][0]
-
-            other_node_dots = []
-            for node_id in self.vertices_data: # Assuming self.vertices_data holds all relevant node IDs
-                if node_id in self.node_mobjects: # Ensure mobject exists for this ID
-                    if node_id != self.source_node and node_id != self.sink_node:
-                        other_node_dots.append(self.node_mobjects[node_id][0])
-            
-            anims_for_final_emphasis = []
-
-            # Flashes for other nodes
-            # These are added first to the list, but all animations in a single self.play() run concurrently
-            # unless explicitly sequenced with LaggedStart or AnimationGroup with delays.
-            anims_for_final_emphasis.extend(
-                [
-                    Flash(dot, color=BLUE_A, flash_radius=NODE_RADIUS * 2.0) # Using relative flash_radius
-                    for dot in other_node_dots
-                ]
-            )
-            
-            # Flashes for source and sink nodes (more prominent radius and distinct colors)
-            # Added to the list; will play concurrently with the others.
-            # Their prominence comes from visual distinction.
-            anims_for_final_emphasis.append(
-                Flash(source_dot, color=GOLD_D, flash_radius=NODE_RADIUS * 3.0) 
-            )
-            anims_for_final_emphasis.append(
-                Flash(sink_dot, color=RED_C, flash_radius=NODE_RADIUS * 3.0)
-            )
-            
-            if anims_for_final_emphasis:
-                self.play(
-                    *anims_for_final_emphasis,
-                    run_time=2.0 
-                )
-        # --- End of Final Emphasis Flash Animation ---
 
         # Clean up scene, leaving only titles and final status
         mobjects_that_should_remain_on_screen = Group(self.main_title, self.info_texts_group)
