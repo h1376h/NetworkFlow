@@ -735,11 +735,13 @@ class DinitzAlgorithmVisualizer(Scene):
                     tip_part = base_arrow[1]
                     dashed_line = DashedVMobject(line_part, num_dashes=12, dashed_ratio=0.6)
                     
-                    # 3. The final mobject is a VGroup of the new dashed line and the original tip.
-                    rev_arrow = VGroup(dashed_line, tip_part).set_color(REVERSE_EDGE_COLOR)
+                    # 3. Group the components first.
+                    rev_arrow = VGroup(dashed_line, tip_part)
                     rev_arrow.set_z_index(REVERSE_EDGE_Z_INDEX)
-                    
+
+                    # 4. Set opacity first, then set the color.
                     rev_arrow.set_opacity(REVERSE_EDGE_OPACITY if REVERSE_EDGE_OPACITY > 0 else 0.0)
+                    rev_arrow.set_color(REVERSE_EDGE_COLOR)
                     self.edge_mobjects[current_edge_tuple] = rev_arrow
                     edges_vgroup.add(rev_arrow)
 
