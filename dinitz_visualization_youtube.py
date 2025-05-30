@@ -728,17 +728,19 @@ class DinitzAlgorithmVisualizer(Scene):
         self.max_flow_value = 0
 
         # Define graph structure (nodes, edges, capacities)
-        self.source_node, self.sink_node = 0, 5 
-        self.vertices_data = [0, 1, 2, 3, 4, 5] 
+        self.source_node, self.sink_node = 0, 10
+        self.vertices_data = list(range(0, 11))
         self.edges_with_capacity_list = [
-            (0, 1, 10), (0, 2, 10),  # s -> 1, s -> 2
-            (1, 2, 2),               # 1 -> 2
-            (1, 3, 4),               # 1 -> 3
-            (1, 4, 8),               # 1 -> 4
-            (2, 4, 9),               # 2 -> 4
-            (3, 5, 10),               # 3 -> t (5)
-            (4, 3, 6),               # 4 -> 3
-            (4, 5, 10)               # 4 -> t (5)
+            (0, 1, 5), (0, 2, 10),  (0, 3, 15), # s -> ...
+            (1, 4, 10), # 1 -> ...
+            (2, 1, 15), (2, 5, 20), # 2 -> ...
+            (3, 6, 25), # 3 -> ...
+            (4, 5, 25), (4, 7, 10), # 4 -> ...
+            (5, 3, 5), (5, 8, 30), # 5 -> ...
+            (6, 9, 10), # 6 -> ...
+            (7, 10, 5), # 7 -> ...
+            (8, 4, 15), (8, 10, 15), # 8 -> ...
+            (9, 10, 10) # 9 -> ...
         ]
         self.original_edge_tuples = set([(u,v) for u,v,c in self.edges_with_capacity_list])
 
@@ -755,10 +757,15 @@ class DinitzAlgorithmVisualizer(Scene):
         self.graph_layout = { 
             0: [-5, 0, 0],      # Node s
             1: [-2.5, 1.5, 0],  # Node 1
-            2: [-2.5, -1.5, 0], # Node 2
-            3: [2.5, 1.5, 0],   # Node 3
-            4: [2.5, -1.5, 0],  # Node 4
-            5: [5, 0, 0]        # Node t
+            2: [-2.5, 0, 0], # Node 2
+            3: [-2.5, -1.5, 0], # Node 3
+            4: [0, 1.5, 0], # Node 4
+            5: [0, 0, 0], # Node 5
+            6: [0, -1.5, 0], # Node 6
+            7: [2.5, 1.5, 0],   # Node 7
+            8: [2.5, 0, 0],   # Node 8
+            9: [2.5, -1.5, 0],  # Node 4
+            10: [5, 0, 0]        # Node t
         }
 
         # Dictionaries to store mobjects for nodes, edges, and labels
