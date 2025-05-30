@@ -209,8 +209,36 @@ class DinitzAlgorithmVisualizer(Scene):
 
     def update_max_flow_display(self, play_anim=True):
         # Updates the max_flow_display_mobj with the current max flow value.
-        new_text_str = f"Sink's value of flow: {self.max_flow_value:.1f}"
-        self._update_text_generic("max_flow_display_mobj", new_text_str, MAX_FLOW_DISPLAY_FONT_SIZE, BOLD, GREEN_C, play_anim)
+        new_text_str = f"{self.max_flow_value:.1f}"
+        old_mobj = self.max_flow_display_mobj
+        
+        new_mobj = Text(new_text_str, font_size=MAX_FLOW_DISPLAY_FONT_SIZE, weight=BOLD, color=GREEN_C).set_z_index(10)
+        
+        # Position at the bottom of the sink node
+        if hasattr(self, 'sink_node') and self.sink_node in self.node_mobjects:
+            sink_dot = self.node_mobjects[self.sink_node][0]
+            new_mobj.next_to(sink_dot, DOWN, buff=BUFF_MED)
+        
+        # Handle replacement if the mobject is part of the info_texts_group
+        current_idx = -1
+        if old_mobj in self.info_texts_group.submobjects:
+            current_idx = self.info_texts_group.submobjects.index(old_mobj)
+            self.info_texts_group.remove(old_mobj)
+
+        if old_mobj in self.mobjects:
+            self.remove(old_mobj)
+
+        setattr(self, "max_flow_display_mobj", new_mobj)
+        
+        # Add the new mobject directly to the scene instead of to the info_texts_group
+        if play_anim:
+            self._animate_text_update(old_mobj, new_mobj, new_text_str)
+        else: # If not animating, just add if it's new content and not already present
+            is_empty_new_content = (isinstance(new_mobj, Text) and new_mobj.text == "") or \
+                                   (isinstance(new_mobj, Tex) and new_mobj.tex_string == "")
+            
+            if not is_empty_new_content and new_mobj not in self.mobjects:
+                self.add(new_mobj)
 
     def _update_sink_action_text(self, state: str, animate=True):
         """
