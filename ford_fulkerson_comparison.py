@@ -116,14 +116,28 @@ class FordFulkersonComparison(Scene):
         self.wait(1)
         
         # Create a simple network example (3b1b style visualization)
-        network_example = self.create_network_example()
-        network_example.scale(0.8).to_edge(LEFT, buff=1.0)
+        network_example, nodes = self.create_network_example()
+        network_example.scale(0.9)  # Slightly smaller
         
-        # Fade out explanation text completely (fixed overlap issue)
+        # Position the network example below the explanation text
+        network_example.next_to(explanation_group, DOWN, buff=0.8)
+        
+        # Animate the network appearance
+        self.play(
+            FadeIn(network_example, scale=1.1),
+            run_time=1.2
+        )
+        self.wait(0.8)
+        
+        # Animate an augmenting path to illustrate the concept
+        self.animate_augmenting_path(network_example, nodes)
+        self.wait(0.5)
+        
+        # Fade out everything except the title and underline
         self.play(
             FadeOut(explanation_group),
-            FadeIn(network_example),
-            run_time=1.2
+            FadeOut(network_example),
+            run_time=1.0
         )
         
         # Core concept graphic
@@ -150,43 +164,34 @@ class FordFulkersonComparison(Scene):
         
         self.play(
             FadeIn(ff_core_concept, scale=1.1),
-            network_example.animate.to_edge(LEFT, buff=1.0),
             run_time=1.2
         )
         self.wait(0.5)
         
-        # Augmenting path animation
-        self.animate_augmenting_path(network_example)
-        
-        # Create three algorithm boxes with arrows from core concept
+        # Create tree structure showing the three algorithm variants
         algorithms = [
             {
                 "name": "Basic Ford-Fulkerson (DFS)",
                 "description": "Uses depth-first search\nto find augmenting paths",
                 "key_points": ["Simple implementation", "O(|E|·f) time complexity", "May be slow on large networks"],
-                "color": RED_D,
-                "diagram": self.create_dfs_diagram()
+                "color": RED_D
             },
             {
                 "name": "Edmonds-Karp (BFS)",
                 "description": "Uses breadth-first search\nfor shortest augmenting paths",
                 "key_points": ["Finds shortest paths first", "O(|V|·|E|²) time complexity", "More efficient on typical graphs"],
-                "color": GREEN_D,
-                "diagram": self.create_bfs_diagram()
+                "color": GREEN_D
             },
             {
                 "name": "Capacity Scaling",
                 "description": "Prioritizes paths with\nlarge residual capacities",
                 "key_points": ["Considers high-capacity edges first", "O(|E|²·log(U)) time complexity", "Efficient on networks with large capacities"],
-                "color": BLUE_D,
-                "diagram": self.create_scaling_diagram()
+                "color": BLUE_D
             }
         ]
         
         algo_boxes = VGroup()
         algo_descriptions = VGroup()
-        algo_key_points = VGroup()
-        algo_diagrams = VGroup()
         arrows = VGroup()
         
         # Layout calculations
@@ -218,22 +223,6 @@ class FordFulkersonComparison(Scene):
             description.scale_to_fit_width(box_width)
             description.next_to(algo_box, DOWN, buff=0.3)
             
-            # Key points below description
-            key_points_group = VGroup()
-            for j, point in enumerate(algo["key_points"]):
-                bullet = Text("•", font_size=16, color=lighten_color(algo["color"], 0.3))
-                point_text = Text(point, font_size=16, color=LIGHT_GRAY)
-                point_group = VGroup(bullet, point_text).arrange(RIGHT, buff=0.1, aligned_edge=UP)
-                key_points_group.add(point_group)
-            
-            key_points_group.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
-            key_points_group.next_to(description, DOWN, buff=0.3)
-            
-            # Add algorithm visualization diagram
-            diagram = algo["diagram"]
-            diagram.scale(0.45)
-            diagram.next_to(key_points_group, DOWN, buff=0.3)
-            
             # Arrow from core concept to algorithm
             arrow = Arrow(
                 core_box.get_edge_center(DOWN) + DOWN * 0.1,
@@ -246,21 +235,94 @@ class FordFulkersonComparison(Scene):
             
             algo_boxes.add(VGroup(algo_box, algo_name))
             algo_descriptions.add(description)
-            algo_key_points.add(key_points_group)
-            algo_diagrams.add(diagram)
             arrows.add(arrow)
         
         # Animate the arrows from core concept to algorithms
         self.play(
             *[Create(arrow) for arrow in arrows],
-            FadeOut(network_example),
             run_time=1.5
         )
         
         # Animate the algorithm boxes
         self.play(
             *[FadeIn(box, scale=1.1) for box in algo_boxes],
-            run_time=1
+            run_time=1.0
+        )
+        
+        # Animate descriptions
+        self.play(
+            *[FadeIn(desc, shift=UP*0.2) for desc in algo_descriptions],
+            run_time=0.8
+        )
+        
+        self.wait(1.5)
+        
+        # Store all tree elements for later reuse
+        algorithm_tree = VGroup(ff_core_concept, algo_boxes, algo_descriptions, arrows)
+        
+        # Fade out tree structure to prepare for detailed demonstrations
+        self.play(
+            FadeOut(algorithm_tree),
+            run_time=1.0
+        )
+        
+        # Demonstrate each algorithm in detail (one by one)
+        self.demonstrate_dfs_algorithm()
+        self.demonstrate_bfs_algorithm()
+        self.demonstrate_capacity_scaling()
+        
+        # After individual demonstrations, bring back the algorithm tree with detailed comparison
+        # First show the core concept again
+        self.play(
+            FadeIn(ff_core_concept, scale=1.1),
+            run_time=1.2
+        )
+        
+        # Create detailed algorithm comparison with key points and diagrams
+        algo_key_points = VGroup()
+        algo_diagrams = VGroup()
+        
+        for i, algo in enumerate(algorithms):
+            # Get the algorithm box from earlier
+            algo_box = algo_boxes[i]
+            
+            # Key points below description
+            key_points_group = VGroup()
+            for j, point in enumerate(algo["key_points"]):
+                bullet = Text("•", font_size=16, color=lighten_color(algo["color"], 0.3))
+                point_text = Text(point, font_size=16, color=LIGHT_GRAY)
+                point_group = VGroup(bullet, point_text).arrange(RIGHT, buff=0.1, aligned_edge=UP)
+                key_points_group.add(point_group)
+            
+            key_points_group.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
+            
+            # Add algorithm visualization diagram
+            if i == 0:
+                diagram = self.create_dfs_diagram()
+            elif i == 1:
+                diagram = self.create_bfs_diagram()
+            else:
+                diagram = self.create_scaling_diagram()
+            
+            diagram.scale(0.45)
+            
+            # Position key points and diagram
+            x_pos = start_x + i * box_spacing
+            key_points_group.move_to([x_pos, -2.0, 0], aligned_edge=UP)
+            diagram.next_to(key_points_group, DOWN, buff=0.4)
+            
+            algo_key_points.add(key_points_group)
+            algo_diagrams.add(diagram)
+        
+        # Animate arrows and algorithm boxes
+        self.play(
+            *[Create(arrow) for arrow in arrows],
+            run_time=1.5
+        )
+        
+        self.play(
+            *[FadeIn(box, scale=1.1) for box in algo_boxes],
+            run_time=1.0
         )
         
         # Animate descriptions
@@ -282,25 +344,34 @@ class FordFulkersonComparison(Scene):
             run_time=1.2
         )
         
-        self.wait(1)
+        self.wait(2.0)
+        
+        # Group all elements for easier fade out
+        complete_algorithm_tree = VGroup(
+            ff_core_concept, algo_boxes, algo_descriptions, 
+            arrows, algo_key_points, algo_diagrams
+        )
+        
+        # Fade out the complete tree
+        self.play(
+            FadeOut(complete_algorithm_tree),
+            run_time=1.5
+        )
         
         # Performance comparison chart (3b1b style)
         perf_chart = self.create_performance_chart()
         
         self.play(
-            *[FadeOut(diagram) for diagram in algo_diagrams],
-            *[FadeOut(points) for points in algo_key_points],
-            *[FadeOut(desc) for desc in algo_descriptions],
             FadeIn(perf_chart),
             run_time=1.5
         )
         
-        self.wait(1.5)
+        self.wait(2.0)
         
         # Fade out performance chart
         self.play(
             FadeOut(perf_chart),
-            run_time=1
+            run_time=1.0
         )
         
         # Conclusion banner at bottom
@@ -328,23 +399,19 @@ class FordFulkersonComparison(Scene):
             run_time=1.5
         )
         
-        self.wait(1)
+        self.wait(1.5)
         
-        # Final fade out
+        # Final fade out - explicitly fade out everything to ensure no elements remain
+        final_elements = VGroup(conclusion_banner, conclusion_text, title, underline)
+        
         self.play(
-            FadeOut(conclusion_banner),
-            FadeOut(conclusion_text),
-            FadeOut(algo_boxes),
-            FadeOut(arrows),
-            FadeOut(ff_core_concept),
-            FadeOut(title),
-            FadeOut(underline),
+            FadeOut(final_elements),
             run_time=1.5
         )
         
         self.wait(1)
 
-    def create_network_example(self):
+    def create_network_example(self, title_text="Network Example", scale_factor=1.0, custom_position=None):
         """Create a simple network visualization example in 3b1b style."""
         network = VGroup()
         
@@ -395,7 +462,6 @@ class FordFulkersonComparison(Scene):
                 tip_length=0.15
             )
             
-            # Add capacity label
             # Use rotate_vector_2d instead of .rotate()
             direction = normalize(end - start)
             offset = rotate_vector_2d(direction, PI/2) * 0.15
@@ -404,31 +470,35 @@ class FordFulkersonComparison(Scene):
             
             network.add(arrow, cap_text)
         
-        # Add "Network Example" label
-        label = Text("Network Example", font_size=24, color=YELLOW_C)
-        label.next_to(network, UP, buff=0.3)
+        # Add title label
+        label = Text(title_text, font_size=28, color=YELLOW_C)
+        label.next_to(network, UP, buff=0.5)
         network.add(label)
         
-        return network
+        # Scale if needed
+        if scale_factor != 1.0:
+            network.scale(scale_factor)
+        
+        # Position if specified
+        if custom_position is not None:
+            network.move_to(custom_position)
+        else:
+            # Center the network by default
+            network.move_to(ORIGIN)
+        
+        return network, nodes
     
-    def animate_augmenting_path(self, network):
+    def animate_augmenting_path(self, network, nodes):
         """Animate an augmenting path in the network example."""
         # Create a simple path highlight animation
         path_edges = [("s", "a"), ("a", "b"), ("b", "t")]
-        
-        # Extract node positions from the network
-        nodes = {}
-        for i in range(len(network) - 1):  # Skip the last element which is the label
-            if isinstance(network[i][0], Circle):
-                node_label = network[i][1].text
-                nodes[node_label] = network[i].get_center()
         
         # Create path highlight
         path_arrows = VGroup()
         for u, v in path_edges:
             if u in nodes and v in nodes:
-                start = nodes[u]
-                end = nodes[v]
+                start = nodes[u].get_center()
+                end = nodes[v].get_center()
                 
                 arrow = Arrow(
                     start=start, 
@@ -458,7 +528,7 @@ class FordFulkersonComparison(Scene):
         self.play(FadeOut(path_arrows), run_time=0.8)
 
     def create_dfs_diagram(self):
-        """Create a DFS visualization."""
+        """Create a DFS visualization in 3b1b style with enhanced visuals."""
         diagram = VGroup()
         
         # Create a small tree to illustrate DFS
@@ -479,9 +549,22 @@ class FordFulkersonComparison(Scene):
                 x_pos = (i - (nodes_in_level - 1) / 2) * node_width
                 y_pos = -level * level_height
                 
-                node = Circle(radius=node_radius, fill_color=RED_E, fill_opacity=0.7, stroke_color=RED_A)
+                # Create node with glow effect (3b1b style)
+                node = Circle(
+                    radius=node_radius, 
+                    fill_color=RED_E, 
+                    fill_opacity=0.7, 
+                    stroke_color=RED_A,
+                    stroke_width=2
+                )
                 node.move_to([x_pos, y_pos, 0])
-                level_nodes.append(node)
+                
+                # Add subtle glow (3b1b style)
+                glow = node.copy().set_fill(opacity=0).set_stroke(RED_A, width=5, opacity=0.3)
+                glow.scale(1.2)
+                
+                node_group = VGroup(glow, node)
+                level_nodes.append(node_group)
                 
                 # Connect to parent if not root
                 if level > 0:
@@ -489,9 +572,10 @@ class FordFulkersonComparison(Scene):
                     parent = nodes[level-1][parent_idx]
                     
                     edge = Line(
-                        parent.get_center(),
+                        parent[1].get_center(),  # Use the actual node, not the glow
                         node.get_center(),
                         stroke_width=2,
+                        stroke_opacity=0.7,
                         color=GRAY_C
                     )
                     edges.append(edge)
@@ -507,12 +591,13 @@ class FordFulkersonComparison(Scene):
             for node in level_nodes:
                 diagram.add(node)
         
-        # Highlight DFS path
+        # Highlight DFS path - this creates the depth-first traversal effect
         dfs_path = VGroup()
+        # Path goes straight down to showcase depth-first nature
         for i in range(tree_levels-1):
             if i < len(nodes) - 1 and nodes[i] and nodes[i+1]:
-                start_node = nodes[i][0]
-                end_node = nodes[i+1][0]
+                start_node = nodes[i][0][1]  # Get the actual node, not the glow
+                end_node = nodes[i+1][0][1]
                 
                 path_edge = Line(
                     start_node.get_center(),
@@ -525,14 +610,23 @@ class FordFulkersonComparison(Scene):
         diagram.add(dfs_path)
         
         # Add label
-        label = Text("DFS: Deep First", font_size=20, color=RED_C)
+        label = Text("DFS: Depth-First Search", font_size=22, color=RED_C)
         label.next_to(diagram, UP, buff=0.3)
         diagram.add(label)
+        
+        # Add small explanation text
+        explanation = Text("Explores as deep as possible before backtracking", 
+                           font_size=16, color=LIGHT_GRAY)
+        explanation.next_to(label, UP, buff=0.2)
+        diagram.add(explanation)
+        
+        # Center the diagram
+        diagram.move_to(ORIGIN)
         
         return diagram
 
     def create_bfs_diagram(self):
-        """Create a BFS visualization."""
+        """Create a BFS visualization in enhanced 3b1b style."""
         diagram = VGroup()
         
         # Create a small tree to illustrate BFS
@@ -543,19 +637,35 @@ class FordFulkersonComparison(Scene):
         
         nodes = []
         edges = []
+        level_groups = []
         
         # Create nodes in a tree structure
         for level in range(tree_levels):
             level_nodes = []
+            level_group = VGroup()
             nodes_in_level = min(2**level, 4)  # Cap width for visibility
             
             for i in range(nodes_in_level):
                 x_pos = (i - (nodes_in_level - 1) / 2) * node_width
                 y_pos = -level * level_height
                 
-                node = Circle(radius=node_radius, fill_color=GREEN_E, fill_opacity=0.7, stroke_color=GREEN_A)
+                # Create node with glow effect (3b1b style)
+                node = Circle(
+                    radius=node_radius, 
+                    fill_color=GREEN_E, 
+                    fill_opacity=0.7, 
+                    stroke_color=GREEN_A,
+                    stroke_width=2
+                )
                 node.move_to([x_pos, y_pos, 0])
-                level_nodes.append(node)
+                
+                # Add subtle glow (3b1b style)
+                glow = node.copy().set_fill(opacity=0).set_stroke(GREEN_A, width=5, opacity=0.3)
+                glow.scale(1.2)
+                
+                node_group = VGroup(glow, node)
+                level_nodes.append(node_group)
+                level_group.add(node_group)
                 
                 # Connect to parent if not root
                 if level > 0:
@@ -563,14 +673,16 @@ class FordFulkersonComparison(Scene):
                     parent = nodes[level-1][parent_idx]
                     
                     edge = Line(
-                        parent.get_center(),
+                        parent[1].get_center(),  # Use the actual node, not the glow
                         node.get_center(),
                         stroke_width=2,
+                        stroke_opacity=0.7,
                         color=GRAY_C
                     )
                     edges.append(edge)
             
             nodes.append(level_nodes)
+            level_groups.append(level_group)
         
         # Add edges first (for proper z-ordering)
         for edge in edges:
@@ -581,16 +693,17 @@ class FordFulkersonComparison(Scene):
             for node in level_nodes:
                 diagram.add(node)
         
-        # Highlight BFS path - breadth first traversal
+        # Highlight BFS path - level by level highlighting
+        # First connect root to all level 1 nodes
         bfs_path = VGroup()
-        
-        # Level 0 to 1
-        if nodes[0] and nodes[1] and len(nodes[1]) >= 2:
-            for i in range(min(2, len(nodes[1]))):
+        if nodes[0] and len(nodes) > 1 and nodes[1]:
+            root = nodes[0][0][1]
+            for node in nodes[1]:
+                actual_node = node[1]  # Get the actual node, not the glow
                 path_edge = Line(
-                    nodes[0][0].get_center(),
-                    nodes[1][i].get_center(),
-                    stroke_width=4,
+                    root.get_center(),
+                    actual_node.get_center(),
+                    stroke_width=3,
                     color=GREEN_A
                 )
                 bfs_path.add(path_edge)
@@ -598,14 +711,31 @@ class FordFulkersonComparison(Scene):
         diagram.add(bfs_path)
         
         # Add label
-        label = Text("BFS: Breadth First", font_size=20, color=GREEN_C)
+        label = Text("BFS: Breadth-First Search", font_size=22, color=GREEN_C)
         label.next_to(diagram, UP, buff=0.3)
         diagram.add(label)
+        
+        # Add small explanation text
+        explanation = Text("Explores all neighbors before moving to next level", 
+                           font_size=16, color=LIGHT_GRAY)
+        explanation.next_to(label, UP, buff=0.2)
+        diagram.add(explanation)
+        
+        # Add level indicators (0, 1, 2) on the left side
+        for i, level_group in enumerate(level_groups):
+            level_text = Text(f"Level {i}", font_size=16, color=GREEN_C)
+            # Position to the left of the first node in each level
+            if level_group:
+                level_text.next_to(level_group, LEFT, buff=0.3)
+                diagram.add(level_text)
+        
+        # Center the diagram
+        diagram.move_to(ORIGIN)
         
         return diagram
 
     def create_scaling_diagram(self):
-        """Create a capacity scaling visualization."""
+        """Create a capacity scaling visualization in enhanced 3b1b style."""
         diagram = VGroup()
         
         # Create a small network to illustrate capacity scaling
@@ -619,9 +749,21 @@ class FordFulkersonComparison(Scene):
         
         nodes = {}
         for label, pos in node_positions.items():
-            circle = Circle(radius=node_radius, fill_color=BLUE_E, fill_opacity=0.7, stroke_color=BLUE_A)
+            # Create node with glow effect (3b1b style)
+            circle = Circle(
+                radius=node_radius, 
+                fill_color=BLUE_E, 
+                fill_opacity=0.7, 
+                stroke_color=BLUE_A,
+                stroke_width=2
+            )
+            
+            # Add subtle glow (3b1b style)
+            glow = circle.copy().set_fill(opacity=0).set_stroke(BLUE_A, width=5, opacity=0.3)
+            glow.scale(1.2)
+            
             text = Text(label, font_size=16, color=WHITE)
-            node = VGroup(circle, text)
+            node = VGroup(glow, circle, text)
             node.move_to(pos)
             nodes[label] = node
             diagram.add(node)
@@ -636,29 +778,43 @@ class FordFulkersonComparison(Scene):
         ]
         
         edge_objects = {}
+        capacity_labels = {}
+        
         for u, v, cap in edges:
-            start = nodes[u].get_center()
-            end = nodes[v].get_center()
+            start = nodes[u][1].get_center()  # Use the circle, not the glow
+            end = nodes[v][1].get_center()
             
-            # Create arrow
+            # Create arrow with improved styling
             arrow = Arrow(
                 start=start, 
                 end=end,
                 buff=node_radius,
                 stroke_width=2,
+                stroke_opacity=0.7,
                 color=GRAY,
                 tip_length=0.15
             )
             
-            # Add capacity label
-            # Use rotate_vector_2d instead of .rotate()
+            # Add capacity label with improved styling
             direction = normalize(end - start)
             offset = rotate_vector_2d(direction, PI/2) * 0.15
-            cap_text = Text(cap, font_size=14, color=LIGHT_GRAY)
+            cap_text = Text(cap, font_size=18, color=WHITE)
             cap_text.move_to((start + end) / 2 + offset)
             
-            diagram.add(arrow, cap_text)
+            # Add background bubble for capacity text (3b1b style)
+            cap_bubble = Circle(
+                radius=0.17,
+                fill_color=DARK_GRAY,
+                fill_opacity=0.7,
+                stroke_color=GRAY_C,
+                stroke_width=1
+            ).move_to(cap_text.get_center())
+            
+            capacity_group = VGroup(cap_bubble, cap_text)
+            
+            diagram.add(arrow, capacity_group)
             edge_objects[(u, v)] = arrow
+            capacity_labels[(u, v)] = capacity_group
         
         # Highlight highest capacity path
         high_cap_path = VGroup()
@@ -672,10 +828,35 @@ class FordFulkersonComparison(Scene):
         
         diagram.add(high_cap_path)
         
+        # Add delta indicator
+        delta_box = RoundedRectangle(
+            width=1.2,
+            height=0.5,
+            corner_radius=0.1,
+            fill_color=BLUE_E,
+            fill_opacity=0.7,
+            stroke_color=BLUE_A,
+            stroke_width=2
+        )
+        delta_text = Text("Δ = 8", font_size=20, color=WHITE)
+        delta_text.move_to(delta_box)
+        delta_group = VGroup(delta_box, delta_text)
+        delta_group.to_corner(UL, buff=0.3)
+        diagram.add(delta_group)
+        
         # Add label
-        label = Text("Scaling: Highest Capacity First", font_size=20, color=BLUE_C)
+        label = Text("Capacity Scaling", font_size=22, color=BLUE_C)
         label.next_to(diagram, UP, buff=0.3)
         diagram.add(label)
+        
+        # Add small explanation text
+        explanation = Text("Prioritizes high-capacity paths first", 
+                        font_size=16, color=LIGHT_GRAY)
+        explanation.next_to(label, UP, buff=0.2)
+        diagram.add(explanation)
+        
+        # Center the diagram
+        diagram.move_to(ORIGIN)
         
         return diagram
 
@@ -743,4 +924,493 @@ class FordFulkersonComparison(Scene):
         # Position the chart
         chart.scale(0.85).move_to(ORIGIN)
         
-        return chart 
+        return chart
+
+    def demonstrate_dfs_algorithm(self):
+        """Create a detailed demonstration of the DFS algorithm for Ford-Fulkerson."""
+        # Title for this section
+        title = Text("Basic Ford-Fulkerson with DFS", font_size=32, color=RED_C)
+        title.to_edge(UP, buff=0.7)
+        
+        self.play(FadeIn(title), run_time=1.0)
+        
+        # Description text positioned below the title with appropriate spacing
+        description = Text(
+            "DFS explores as far as possible along each branch before backtracking",
+            font_size=24, color=LIGHT_GRAY
+        )
+        description.next_to(title, DOWN, buff=0.6)  # Increased buffer
+        
+        self.play(FadeIn(description), run_time=1.0)
+        self.wait(0.5)
+        
+        # Create a small network example specifically for DFS
+        dfs_network, nodes = self.create_network_example(
+            title_text="Depth-First Search Example", 
+            scale_factor=1.1,
+            custom_position=ORIGIN + DOWN * 0.5  # Position slightly lower to avoid overlapping
+        )
+        
+        # Animate network after description
+        self.play(FadeIn(dfs_network, scale=1.1), run_time=1.2)
+        self.wait(0.8)
+        
+        # Demonstrate DFS traversal
+        path_sequence = [
+            ["s", "a"], ["a", "b"], ["b", "t"],  # First path s->a->b->t
+            ["s", "a"], ["a", "d"], ["d", "b"], ["b", "t"],  # Second path s->a->d->b->t
+            ["s", "c"], ["c", "d"], ["d", "t"]   # Third path s->c->d->t
+        ]
+        
+        # Show DFS path finding step by step
+        path_visualizations = []
+        
+        for i in range(0, len(path_sequence), 3):  # Group paths in threes
+            path_group = path_sequence[i:i+3]
+            
+            # Create arrows for this path
+            path_arrows = VGroup()
+            for u, v in path_group:
+                if u in nodes and v in nodes:
+                    start = nodes[u].get_center()
+                    end = nodes[v].get_center()
+                    
+                    arrow = Arrow(
+                        start=start, 
+                        end=end,
+                        buff=0.25,  # node radius
+                        stroke_width=4,
+                        color=RED_B,
+                        tip_length=0.15
+                    )
+                    path_arrows.add(arrow)
+            
+            path_visualizations.append(path_arrows)
+            
+            # Animate path highlighting
+            self.play(
+                LaggedStart(*[GrowArrow(arrow) for arrow in path_arrows], lag_ratio=0.3),
+                run_time=1.5
+            )
+            
+            # Animate flow if this is a complete path
+            if len(path_group) == 3 and path_group[-1][1] == "t":
+                flow_pulses = []
+                for arrow in path_arrows:
+                    pulse = arrow.copy().set_color(RED_A).set_stroke(width=6)
+                    flow_pulses.append(ShowPassingFlash(pulse, time_width=0.5, run_time=1.2))
+                
+                self.play(LaggedStart(*flow_pulses, lag_ratio=0.2), run_time=1.8)
+            
+            self.wait(0.5)
+            
+            # Add path index
+            path_index = Text(f"Path {len(path_visualizations)}", font_size=20, color=RED_C)
+            path_index.to_corner(DR, buff=0.5)
+            self.play(FadeIn(path_index), run_time=0.5)
+            self.wait(0.7)
+            self.play(FadeOut(path_index), run_time=0.5)
+            
+            # Fade out current path before showing next
+            if i + 3 < len(path_sequence):
+                self.play(FadeOut(path_arrows), run_time=0.8)
+        
+        # Add key characteristics
+        characteristics = VGroup()
+        char_items = [
+            "• Simple implementation",
+            "• Time complexity: O(|E|·f)",
+            "• May not find shortest paths",
+            "• Can be slow on large networks"
+        ]
+        
+        for item in char_items:
+            text = Text(item, font_size=22, color=LIGHT_GRAY)
+            characteristics.add(text)
+        
+        characteristics.arrange(DOWN, aligned_edge=LEFT, buff=0.2)
+        characteristics.to_edge(LEFT, buff=1.0).shift(DOWN * 2.5)  # Shifted down more
+        
+        self.play(
+            FadeIn(characteristics, shift=RIGHT*0.3),
+            run_time=1.2
+        )
+        
+        self.wait(2.0)
+        
+        # Ensure complete cleanup
+        all_elements = VGroup(dfs_network, characteristics, description, title)
+        for arrows in path_visualizations:
+            if arrows in self.mobjects:
+                all_elements.add(arrows)
+        
+        # Fade out everything
+        self.play(
+            FadeOut(all_elements),
+            run_time=1.0
+        )
+        
+        self.wait(0.5)
+
+    def demonstrate_bfs_algorithm(self):
+        """Create a detailed demonstration of the BFS algorithm for Ford-Fulkerson (Edmonds-Karp)."""
+        # Title for this section
+        title = Text("Edmonds-Karp Algorithm (BFS)", font_size=32, color=GREEN_C)
+        title.to_edge(UP, buff=0.7)
+        
+        self.play(FadeIn(title), run_time=1.0)
+        
+        # Description text positioned below the title with appropriate spacing
+        description = Text(
+            "BFS finds shortest augmenting paths (in terms of number of edges)",
+            font_size=24, color=LIGHT_GRAY
+        )
+        description.next_to(title, DOWN, buff=0.6)  # Increased buffer
+        
+        self.play(FadeIn(description), run_time=1.0)
+        self.wait(0.5)
+        
+        # Create a small network example specifically for BFS
+        bfs_network, nodes = self.create_network_example(
+            title_text="Breadth-First Search Example", 
+            scale_factor=1.1,
+            custom_position=ORIGIN + DOWN * 0.5  # Position slightly lower to avoid overlapping
+        )
+        
+        # Animate network after description
+        self.play(FadeIn(bfs_network, scale=1.1), run_time=1.2)
+        self.wait(0.8)
+        
+        # Simulate BFS exploration level by level
+        levels = [
+            ["s"],                 # Level 0 (source)
+            ["a", "c"],            # Level 1
+            ["b", "d"],            # Level 2
+            ["t"]                  # Level 3 (sink)
+        ]
+        
+        level_texts = []
+        level_highlights = []
+        
+        for i, level in enumerate(levels):
+            # Highlight nodes at this level
+            nodes_highlight = VGroup()
+            for node_id in level:
+                if node_id in nodes:
+                    node_circle = Circle(
+                        radius=0.3, 
+                        color=GREEN_B, 
+                        stroke_width=3,
+                        fill_opacity=0
+                    ).move_to(nodes[node_id].get_center())
+                    nodes_highlight.add(node_circle)
+            
+            level_highlights.append(nodes_highlight)
+            
+            # Add level indicator
+            level_text = Text(f"Level {i}", font_size=22, color=GREEN_B)
+            level_text.to_corner(UL, buff=0.8).shift(DOWN * (0.6 + i * 0.5))  # Adjusted positioning
+            level_texts.append(level_text)
+            
+            self.play(
+                FadeIn(nodes_highlight, scale=1.2),
+                FadeIn(level_text),
+                run_time=0.8
+            )
+            self.wait(0.5)
+        
+        self.wait(1.0)
+        
+        # Fade out level indicators
+        self.play(
+            *[FadeOut(text) for text in level_texts],
+            *[FadeOut(highlight) for highlight in level_highlights],
+            run_time=0.8
+        )
+        
+        # Demonstrate BFS path finding
+        path_sequence = [
+            ["s", "a"], ["a", "b"], ["b", "t"],  # First path s->a->b->t (shortest path)
+            ["s", "c"], ["c", "d"], ["d", "t"],  # Second path s->c->d->t (also shortest)
+            ["s", "a"], ["a", "d"], ["d", "b"], ["b", "t"]  # Third path s->a->d->b->t (longer)
+        ]
+        
+        # Show BFS paths in order of increasing length
+        path_visualizations = []
+        
+        # First two paths are 3 edges long (shortest)
+        for i in range(0, 6, 3):
+            path_group = path_sequence[i:i+3]
+            
+            # Create arrows for this path
+            path_arrows = VGroup()
+            for u, v in path_group:
+                if u in nodes and v in nodes:
+                    start = nodes[u].get_center()
+                    end = nodes[v].get_center()
+                    
+                    arrow = Arrow(
+                        start=start, 
+                        end=end,
+                        buff=0.25,
+                        stroke_width=4,
+                        color=GREEN_B,
+                        tip_length=0.15
+                    )
+                    path_arrows.add(arrow)
+            
+            path_visualizations.append(path_arrows)
+            
+            # Animate path highlighting
+            self.play(
+                LaggedStart(*[GrowArrow(arrow) for arrow in path_arrows], lag_ratio=0.3),
+                run_time=1.5
+            )
+            
+            # Show path length
+            path_length = Text(f"Path length: {len(path_group)} edges", font_size=20, color=GREEN_C)
+            path_length.to_corner(DR, buff=0.5)
+            self.play(FadeIn(path_length), run_time=0.5)
+            
+            # Animate flow
+            flow_pulses = []
+            for arrow in path_arrows:
+                pulse = arrow.copy().set_color(GREEN_A).set_stroke(width=6)
+                flow_pulses.append(ShowPassingFlash(pulse, time_width=0.5, run_time=1.2))
+            
+            self.play(LaggedStart(*flow_pulses, lag_ratio=0.2), run_time=1.8)
+            self.wait(0.5)
+            
+            # Fade out current path elements before showing next
+            self.play(
+                FadeOut(path_arrows),
+                FadeOut(path_length),
+                run_time=0.8
+            )
+        
+        # The final path is 4 edges long
+        path_group = path_sequence[6:10]
+        path_arrows = VGroup()
+        for u, v in path_group:
+            if u in nodes and v in nodes:
+                start = nodes[u].get_center()
+                end = nodes[v].get_center()
+                
+                arrow = Arrow(
+                    start=start, 
+                    end=end,
+                    buff=0.25,
+                    stroke_width=4,
+                    color=GREEN_B,
+                    tip_length=0.15
+                )
+                path_arrows.add(arrow)
+        
+        path_visualizations.append(path_arrows)
+        
+        # Animate longer path highlighting
+        self.play(
+            LaggedStart(*[GrowArrow(arrow) for arrow in path_arrows], lag_ratio=0.3),
+            run_time=1.5
+        )
+        
+        # Show longer path length
+        path_length = Text(f"Path length: {len(path_group)} edges (longer path)", font_size=20, color=GREEN_C)
+        path_length.to_corner(DR, buff=0.5)
+        self.play(FadeIn(path_length), run_time=0.5)
+        
+        # Animate flow for longer path
+        flow_pulses = []
+        for arrow in path_arrows:
+            pulse = arrow.copy().set_color(GREEN_A).set_stroke(width=6)
+            flow_pulses.append(ShowPassingFlash(pulse, time_width=0.5, run_time=1.2))
+        
+        self.play(LaggedStart(*flow_pulses, lag_ratio=0.2), run_time=1.8)
+        self.wait(1.0)
+        
+        # Fade out path elements
+        self.play(
+            FadeOut(path_arrows),
+            FadeOut(path_length),
+            run_time=0.8
+        )
+        
+        # Add key characteristics
+        characteristics = VGroup()
+        char_items = [
+            "• Finds shortest augmenting paths first",
+            "• Time complexity: O(|V|·|E|²)",
+            "• More efficient on typical graphs",
+            "• Guarantees polynomial time"
+        ]
+        
+        for item in char_items:
+            text = Text(item, font_size=22, color=LIGHT_GRAY)
+            characteristics.add(text)
+        
+        characteristics.arrange(DOWN, aligned_edge=LEFT, buff=0.2)
+        characteristics.to_edge(LEFT, buff=1.0).shift(DOWN * 2.5)  # Shifted down more
+        
+        self.play(
+            FadeIn(characteristics, shift=RIGHT*0.3),
+            run_time=1.2
+        )
+        
+        self.wait(2.0)
+        
+        # Fade out everything
+        self.play(
+            FadeOut(bfs_network),
+            FadeOut(characteristics),
+            FadeOut(description),
+            FadeOut(title),
+            run_time=1.0
+        )
+        
+        self.wait(0.5)
+
+    def demonstrate_capacity_scaling(self):
+        """Create a detailed demonstration of the Capacity Scaling algorithm for Ford-Fulkerson."""
+        # Title for this section
+        title = Text("Capacity Scaling Approach", font_size=32, color=BLUE_C)
+        title.to_edge(UP, buff=0.7)
+        
+        self.play(FadeIn(title), run_time=1.0)
+        
+        # Description text positioned below the title with appropriate spacing
+        description = Text(
+            "Prioritizes paths with large residual capacities",
+            font_size=24, color=LIGHT_GRAY
+        )
+        description.next_to(title, DOWN, buff=0.6)  # Increased buffer
+        
+        self.play(FadeIn(description), run_time=1.0)
+        self.wait(0.5)
+        
+        # Create a small network example specifically for capacity scaling
+        scaling_network, nodes = self.create_network_example(
+            title_text="Capacity Scaling Example", 
+            scale_factor=1.1,
+            custom_position=ORIGIN + DOWN * 0.5  # Position slightly lower to avoid overlapping
+        )
+        
+        # Animate network after description
+        self.play(FadeIn(scaling_network, scale=1.1), run_time=1.2)
+        self.wait(0.8)
+        
+        # Show capacity scaling phases with different delta values
+        delta_values = [8, 4, 2, 1]  # Powers of 2, decreasing
+        
+        for delta in delta_values:
+            # Show delta value
+            delta_text = Text(f"Delta = {delta}", font_size=26, color=BLUE_B)
+            delta_text.to_corner(UL, buff=0.8)  # Increased buffer
+            self.play(FadeIn(delta_text), run_time=0.8)
+            
+            # Highlight edges with capacity >= delta
+            highlighted_edges = []
+            
+            if delta == 8:
+                # For delta=8, highlight s->a->b->t and s->c->d->t
+                edge_pairs = [("s", "a"), ("a", "b"), ("b", "t"), ("s", "c"), ("c", "d"), ("d", "t")]
+            elif delta == 4:
+                # For delta=4, highlight s->a->d->t
+                edge_pairs = [("s", "a"), ("a", "d"), ("d", "t")]
+            elif delta == 2:
+                # For delta=2, highlight s->c->d->b->t
+                edge_pairs = [("s", "c"), ("c", "d"), ("d", "b"), ("b", "t")]
+            else:  # delta = 1
+                # For delta=1, highlight any remaining paths
+                edge_pairs = [("a", "c"), ("c", "d"), ("d", "b")]
+            
+            high_capacity_edges = VGroup()
+            for u, v in edge_pairs:
+                if u in nodes and v in nodes:
+                    start = nodes[u].get_center()
+                    end = nodes[v].get_center()
+                    
+                    edge = Arrow(
+                        start=start, 
+                        end=end,
+                        buff=0.25,
+                        stroke_width=4,
+                        color=BLUE_B,
+                        tip_length=0.15
+                    )
+                    high_capacity_edges.add(edge)
+            
+            highlighted_edges.append(high_capacity_edges)
+            
+            # Animate highlighting of high-capacity edges
+            self.play(
+                LaggedStart(*[GrowArrow(edge) for edge in high_capacity_edges], lag_ratio=0.2),
+                run_time=1.2
+            )
+            
+            # Add explanation for this phase
+            phase_explanation = Text(
+                f"Consider only edges with capacity ≥ {delta}",
+                font_size=20, color=LIGHT_GRAY
+            )
+            phase_explanation.to_corner(DR, buff=0.5)
+            self.play(FadeIn(phase_explanation), run_time=0.5)
+            
+            # Show augmenting path if any
+            if len(edge_pairs) >= 3:
+                # Choose first 3 edges as an example path
+                path_edges = VGroup(*[high_capacity_edges[i] for i in range(min(3, len(high_capacity_edges)))])
+                
+                # Pulse effect for augmenting flow
+                flow_pulses = []
+                for edge in path_edges:
+                    pulse = edge.copy().set_color(BLUE_A).set_stroke(width=6)
+                    flow_pulses.append(ShowPassingFlash(pulse, time_width=0.5, run_time=1.2))
+                
+                self.play(LaggedStart(*flow_pulses, lag_ratio=0.2), run_time=1.8)
+            
+            self.wait(1.0)
+            
+            # Clean up before next delta
+            self.play(
+                FadeOut(delta_text),
+                FadeOut(phase_explanation),
+                FadeOut(high_capacity_edges),
+                run_time=0.8
+            )
+        
+        # Add key characteristics
+        characteristics = VGroup()
+        char_items = [
+            "• Considers high-capacity edges first",
+            "• Time complexity: O(|E|²·log(U))",
+            "• U is the maximum capacity in the network",
+            "• Efficient on networks with large capacities"
+        ]
+        
+        for item in char_items:
+            text = Text(item, font_size=22, color=LIGHT_GRAY)
+            characteristics.add(text)
+        
+        characteristics.arrange(DOWN, aligned_edge=LEFT, buff=0.2)
+        characteristics.to_edge(LEFT, buff=1.0).shift(DOWN * 2.5)  # Shifted down more
+        
+        self.play(
+            FadeIn(characteristics, shift=RIGHT*0.3),
+            run_time=1.2
+        )
+        
+        self.wait(2.0)
+        
+        # Ensure complete cleanup
+        all_elements = VGroup(scaling_network, characteristics, description, title)
+        for edges in highlighted_edges:
+            if edges in self.mobjects:
+                all_elements.add(edges)
+        
+        # Fade out everything
+        self.play(
+            FadeOut(all_elements),
+            run_time=1.0
+        )
+        
+        self.wait(0.5) 
