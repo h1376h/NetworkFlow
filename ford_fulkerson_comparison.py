@@ -133,10 +133,12 @@ class FordFulkersonComparison(Scene):
         self.animate_augmenting_path(network_example, nodes)
         self.wait(0.5)
         
-        # Fade out everything except the title and underline
+        # Fade out everything including title and underline before showing the tree structure
         self.play(
             FadeOut(explanation_group),
             FadeOut(network_example),
+            FadeOut(title),
+            FadeOut(underline),
             run_time=1.0
         )
         
@@ -345,45 +347,96 @@ class FordFulkersonComparison(Scene):
             run_time=1.2
         )
         
-        self.wait(0.5)
+        self.wait(1.0)
         
+        # Group all elements of the tree for easier fade out
+        algorithm_tree = VGroup(
+            ff_core_concept, algo_boxes, algo_descriptions, 
+            arrows, algo_key_points
+        )
+        
+        # Fade out the tree to show algorithm diagrams separately
+        self.play(
+            FadeOut(algorithm_tree),
+            run_time=1.5
+        )
+        
+        # Now show algorithm comparisons in fullscreen
         # Create a title for the algorithm visualizations
-        compare_title = Text("Algorithm Comparison", font_size=24, color=YELLOW_C)
-        compare_title.move_to([0, -3.1, 0])
+        compare_title = Text("Algorithm Comparison", font_size=32, color=YELLOW_C)
+        compare_title.to_edge(UP, buff=0.5)
         
         self.play(
             FadeIn(compare_title, shift=UP*0.3),
             run_time=0.8
         )
         
-        # Animate algorithm diagrams one by one with emphasizing effects
+        # Reposition diagrams for fullscreen display with better spacing
+        fullscreen_diagrams = VGroup()
+        diagram_titles = VGroup()
+        
+        diagram_positions = [
+            LEFT * 3.5,
+            ORIGIN,
+            RIGHT * 3.5
+        ]
+        
+        algorithm_names = ["DFS Approach", "BFS (Edmonds-Karp)", "Capacity Scaling"]
+        
         for i, diagram in enumerate(algo_diagrams):
-            diagram_copy = diagram.copy()
+            # Create a new copy of the diagram at a better size
+            if i == 0:
+                new_diagram = self.create_dfs_diagram()
+            elif i == 1:
+                new_diagram = self.create_bfs_diagram()
+            else:
+                new_diagram = self.create_scaling_diagram()
+            
+            # Scale appropriately for fullscreen
+            new_diagram.scale(0.6)
+            
+            # Position in a row across the screen
+            new_diagram.move_to(diagram_positions[i] + DOWN * 0.5)
+            
+            # Create title for each diagram
+            diagram_title = Text(algorithm_names[i], font_size=24, color=algorithms[i]["color"])
+            diagram_title.next_to(new_diagram, UP, buff=0.3)
+            
+            fullscreen_diagrams.add(new_diagram)
+            diagram_titles.add(diagram_title)
+        
+        # Animate algorithm diagrams one by one with emphasizing effects
+        for i in range(len(fullscreen_diagrams)):
+            self.play(
+                FadeIn(diagram_titles[i], shift=UP*0.3),
+                run_time=0.6
+            )
+            
+            diagram_copy = fullscreen_diagrams[i].copy()
             # Start with diagram at slightly larger scale
             diagram_copy.scale(1.2)
             diagram_copy.set_opacity(0.5)
             
             # Animate appearance with fancy effect
             self.play(
-                Transform(diagram_copy, diagram),
+                Transform(diagram_copy, fullscreen_diagrams[i]),
                 run_time=0.8
             )
             self.remove(diagram_copy)
-            self.add(diagram)
+            self.add(fullscreen_diagrams[i])
             
             self.wait(0.3)
         
         self.wait(1.5)
         
         # Group all elements for easier fade out
-        complete_algorithm_tree = VGroup(
-            ff_core_concept, algo_boxes, algo_descriptions, 
-            arrows, algo_key_points, algo_diagrams, compare_title
+        comparison_elements = VGroup(
+            compare_title, fullscreen_diagrams, diagram_titles
         )
         
-        # Fade out the complete tree
+        # Fade out the comparison view
         self.play(
-            FadeOut(complete_algorithm_tree),
+            FadeOut(comparison_elements),
             run_time=1.5
         )
         
