@@ -339,7 +339,7 @@ class FordFulkersonComparison(Scene):
         
         # Now show algorithm comparisons in fullscreen
         # Create a title for the algorithm visualizations
-        compare_title = Text("Algorithm Comparison", font_size=32, color=YELLOW_C)
+        compare_title = Text("Algorithm Comparison", font_size=36, color=YELLOW_C)  # Increased font size
         compare_title.to_edge(UP, buff=0.5)
         
         self.play(
@@ -357,7 +357,7 @@ class FordFulkersonComparison(Scene):
         
         # Calculate horizontal positions with wider spacing
         # Use wider spacing to prevent overlapping
-        width = config.frame_width - 3  # Leave more margin
+        width = config.frame_width - 0.5
         positions = [LEFT * (width/3), ORIGIN, RIGHT * (width/3)]
         
         # Create and position each diagram
@@ -371,13 +371,13 @@ class FordFulkersonComparison(Scene):
                 new_diagram = self.create_scaling_diagram()
             
             # Scale appropriately for fullscreen - make larger
-            new_diagram.scale(0.7)  # Increased from 0.55
+            new_diagram.scale(0.8)  # Increased from 0.7
             
             # Position in a row across the screen with more space between them
-            new_diagram.move_to(positions[i] + DOWN * 0.5)  # Reduced vertical offset
+            new_diagram.move_to(positions[i] + DOWN * 0.5)
             
-            # Create title for each diagram
-            diagram_title = Text(algorithm_names[i], font_size=24, color=algorithm_colors[i])
+            # Create title for each diagram with larger font
+            diagram_title = Text(algorithm_names[i], font_size=28, color=algorithm_colors[i])  # Increased font
             # Always position title directly above its diagram
             diagram_title.next_to(new_diagram, UP, buff=0.3)
             
@@ -594,9 +594,9 @@ class FordFulkersonComparison(Scene):
         
         # Create a small tree to illustrate DFS
         tree_levels = 3
-        node_radius = 0.2
-        level_height = 0.7
-        node_width = 0.6
+        node_radius = 0.25  # Increased from 0.2
+        level_height = 0.8  # Increased from 0.7
+        node_width = 0.7    # Increased from 0.6
         
         nodes = []
         edges = []
@@ -671,13 +671,13 @@ class FordFulkersonComparison(Scene):
         diagram.add(dfs_path)
         
         # Add label
-        label = Text("DFS: Depth-First Search", font_size=22, color=RED_C)
+        label = Text("DFS: Depth-First Search", font_size=26, color=RED_C)  # Increased from 22
         label.next_to(diagram, UP, buff=0.3)
         diagram.add(label)
         
         # Add small explanation text
         explanation = Text("Explores as deep as possible before backtracking", 
-                           font_size=16, color=LIGHT_GRAY)
+                           font_size=18, color=LIGHT_GRAY)  # Increased from 16
         explanation.next_to(label, UP, buff=0.2)
         diagram.add(explanation)
         
@@ -692,9 +692,9 @@ class FordFulkersonComparison(Scene):
         
         # Create a small tree to illustrate BFS
         tree_levels = 3
-        node_radius = 0.2
-        level_height = 0.7
-        node_width = 0.6
+        node_radius = 0.25  # Increased from 0.2
+        level_height = 0.8  # Increased from 0.7
+        node_width = 0.7    # Increased from 0.6
         
         nodes = []
         edges = []
@@ -772,19 +772,19 @@ class FordFulkersonComparison(Scene):
         diagram.add(bfs_path)
         
         # Add label
-        label = Text("BFS: Breadth-First Search", font_size=22, color=GREEN_C)
+        label = Text("BFS: Breadth-First Search", font_size=26, color=GREEN_C)  # Increased from 22
         label.next_to(diagram, UP, buff=0.3)
         diagram.add(label)
         
         # Add small explanation text
         explanation = Text("Explores all neighbors before moving to next level", 
-                           font_size=16, color=LIGHT_GRAY)
+                           font_size=18, color=LIGHT_GRAY)  # Increased from 16
         explanation.next_to(label, UP, buff=0.2)
         diagram.add(explanation)
         
         # Add level indicators (0, 1, 2) on the left side
         for i, level_group in enumerate(level_groups):
-            level_text = Text(f"Level {i}", font_size=16, color=GREEN_C)
+            level_text = Text(f"Level {i}", font_size=20, color=GREEN_C)  # Increased from 16
             # Position to the left of the first node in each level
             if level_group:
                 level_text.next_to(level_group, LEFT, buff=0.3)
@@ -800,7 +800,7 @@ class FordFulkersonComparison(Scene):
         diagram = VGroup()
         
         # Create a small network to illustrate capacity scaling
-        node_radius = 0.2
+        node_radius = 0.25  # Increased from 0.2
         node_positions = {
             "s": LEFT * 1.5,
             "a": UP * 0.7,
@@ -839,7 +839,7 @@ class FordFulkersonComparison(Scene):
             glow = circle.copy().set_fill(opacity=0).set_stroke(BLUE_A, width=5, opacity=0.3)
             glow.scale(1.2)
             
-            text = Text(label, font_size=16, color=WHITE)
+            text = Text(label, font_size=20, color=WHITE)  # Increased from 16
             node = VGroup(glow, circle, text)
             node.move_to(pos)
             nodes[label] = node
@@ -869,12 +869,12 @@ class FordFulkersonComparison(Scene):
             # Add capacity label with improved styling
             direction = normalize(end - start)
             offset = rotate_vector_2d(direction, PI/2) * 0.15
-            cap_text = Text(cap, font_size=18, color=WHITE)
+            cap_text = Text(cap, font_size=22, color=WHITE)  # Increased from 18
             cap_text.move_to((start + end) / 2 + offset)
             
             # Add background bubble for capacity text (3b1b style)
             cap_bubble = Circle(
-                radius=0.17,
+                radius=0.2,  # Increased from 0.17
                 fill_color=DARK_GRAY,
                 fill_opacity=0.7,
                 stroke_color=GRAY_C,
@@ -901,15 +901,15 @@ class FordFulkersonComparison(Scene):
         
         # Add delta indicator - moved to bottom of the diagram
         delta_box = RoundedRectangle(
-            width=1.2,
-            height=0.5,
+            width=1.3,  # Increased from 1.2
+            height=0.6,  # Increased from 0.5
             corner_radius=0.1,
             fill_color=BLUE_E,
             fill_opacity=0.7,
             stroke_color=BLUE_A,
             stroke_width=2
         )
-        delta_text = Text(f"Δ = {delta_value}", font_size=20, color=WHITE)
+        delta_text = Text(f"Δ = {delta_value}", font_size=24, color=WHITE)  # Increased from 20
         delta_text.move_to(delta_box)
         delta_group = VGroup(delta_box, delta_text)
         
@@ -919,13 +919,13 @@ class FordFulkersonComparison(Scene):
         diagram.add(delta_group)
         
         # Add label
-        label = Text("Capacity Scaling", font_size=22, color=BLUE_C)
+        label = Text("Capacity Scaling", font_size=26, color=BLUE_C)  # Increased from 22
         label.next_to(diagram, UP, buff=0.3)
         diagram.add(label)
         
         # Add small explanation text
         explanation = Text("Prioritizes high-capacity paths first", 
-                        font_size=16, color=LIGHT_GRAY)
+                        font_size=18, color=LIGHT_GRAY)  # Increased from 16
         explanation.next_to(label, UP, buff=0.2)
         diagram.add(explanation)
         
