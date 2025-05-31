@@ -282,47 +282,6 @@ class FordFulkersonComparison(Scene):
         
         # Create detailed algorithm comparison with key points and diagrams
         algo_key_points = VGroup()
-        algo_diagrams = VGroup()
-        
-        # Improved layout for better visualization
-        for i, algo in enumerate(algorithms):
-            # Get the algorithm box from earlier
-            algo_box = algo_boxes[i]
-            
-            # Key points below description
-            key_points_group = VGroup()
-            for j, point in enumerate(algo["key_points"]):
-                bullet = Text("•", font_size=16, color=lighten_color(algo["color"], 0.3))
-                point_text = Text(point, font_size=16, color=LIGHT_GRAY)
-                point_group = VGroup(bullet, point_text).arrange(RIGHT, buff=0.1, aligned_edge=UP)
-                key_points_group.add(point_group)
-            
-            key_points_group.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
-            
-            # Position key points at the same level for all algorithms
-            x_pos = start_x + i * box_spacing
-            key_points_group.move_to([x_pos, -2.0, 0], aligned_edge=UP)
-            
-            algo_key_points.add(key_points_group)
-        
-        # Separate step to create diagrams with better spacing
-        for i, algo in enumerate(algorithms):
-            # Add algorithm visualization diagram - smaller scale for better fit
-            if i == 0:
-                diagram = self.create_dfs_diagram()
-            elif i == 1:
-                diagram = self.create_bfs_diagram()
-            else:
-                diagram = self.create_scaling_diagram()
-            
-            # Scale diagrams smaller to fit better
-            diagram.scale(0.35)
-            
-            # Position the diagrams in a row at the bottom
-            x_pos = start_x + i * box_spacing
-            diagram.move_to([x_pos, -3.6, 0]) # Position lower
-            
-            algo_diagrams.add(diagram)
         
         # Animate arrows and algorithm boxes
         self.play(
@@ -340,6 +299,23 @@ class FordFulkersonComparison(Scene):
             *[FadeIn(desc, shift=UP*0.2) for desc in algo_descriptions],
             run_time=0.8
         )
+        
+        # Improved layout for key points
+        for i, algo in enumerate(algorithms):
+            # Key points below description
+            key_points_group = VGroup()
+            for j, point in enumerate(algo["key_points"]):
+                bullet = Text("•", font_size=16, color=lighten_color(algo["color"], 0.3))
+                point_text = Text(point, font_size=16, color=LIGHT_GRAY)
+                point_group = VGroup(bullet, point_text).arrange(RIGHT, buff=0.1, aligned_edge=UP)
+                key_points_group.add(point_group)
+            
+            key_points_group.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
+            
+            # Position key points directly below the description using relative positioning
+            key_points_group.next_to(algo_descriptions[i], DOWN, buff=0.3)
+            
+            algo_key_points.add(key_points_group)
         
         # Animate key points for each algorithm with improved animation
         self.play(
@@ -375,15 +351,17 @@ class FordFulkersonComparison(Scene):
         fullscreen_diagrams = VGroup()
         diagram_titles = VGroup()
         
-        diagram_positions = [
-            LEFT * 3.5,
-            ORIGIN,
-            RIGHT * 3.5
-        ]
-        
+        # Use relative positioning for consistent spacing
         algorithm_names = ["DFS Approach", "BFS (Edmonds-Karp)", "Capacity Scaling"]
+        algorithm_colors = [RED_D, GREEN_D, BLUE_D]
         
-        for i, diagram in enumerate(algo_diagrams):
+        # Calculate horizontal positions with wider spacing
+        # Use wider spacing to prevent overlapping
+        width = config.frame_width - 3  # Leave more margin
+        positions = [LEFT * (width/3), ORIGIN, RIGHT * (width/3)]
+        
+        # Create and position each diagram
+        for i in range(3):
             # Create a new copy of the diagram at a better size
             if i == 0:
                 new_diagram = self.create_dfs_diagram()
@@ -392,14 +370,15 @@ class FordFulkersonComparison(Scene):
             else:
                 new_diagram = self.create_scaling_diagram()
             
-            # Scale appropriately for fullscreen
-            new_diagram.scale(0.6)
+            # Scale appropriately for fullscreen - make larger
+            new_diagram.scale(0.7)  # Increased from 0.55
             
-            # Position in a row across the screen
-            new_diagram.move_to(diagram_positions[i] + DOWN * 0.5)
+            # Position in a row across the screen with more space between them
+            new_diagram.move_to(positions[i] + DOWN * 0.5)  # Reduced vertical offset
             
             # Create title for each diagram
-            diagram_title = Text(algorithm_names[i], font_size=24, color=algorithms[i]["color"])
+            diagram_title = Text(algorithm_names[i], font_size=24, color=algorithm_colors[i])
+            # Always position title directly above its diagram
             diagram_title.next_to(new_diagram, UP, buff=0.3)
             
             fullscreen_diagrams.add(new_diagram)
@@ -910,7 +889,7 @@ class FordFulkersonComparison(Scene):
         
         diagram.add(high_cap_path)
         
-        # Add delta indicator
+        # Add delta indicator - moved to bottom of the diagram
         delta_box = RoundedRectangle(
             width=1.2,
             height=0.5,
@@ -923,7 +902,10 @@ class FordFulkersonComparison(Scene):
         delta_text = Text("Δ = 8", font_size=20, color=WHITE)
         delta_text.move_to(delta_box)
         delta_group = VGroup(delta_box, delta_text)
-        delta_group.to_corner(UL, buff=0.3)
+        
+        # Position delta box below the network (centered)
+        delta_group.next_to(diagram, DOWN, buff=0.3)
+        
         diagram.add(delta_group)
         
         # Add label
