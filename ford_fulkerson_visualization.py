@@ -692,30 +692,63 @@ class BasicFordFulkersonDFS(FordFulkersonVisualizer):
             if (u, v) in self.capacities:
                 self.flow[(u, v)] += bottleneck
                 
-                # Update flow text by modifying the existing text mobject
+                # Update flow text with a direct approach
                 if (u, v) in self.edge_flow_val_text_mobjects:
-                    flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
+                    old_flow_text = self.edge_flow_val_text_mobjects[(u, v)]
                     new_flow_val = self.flow[(u, v)]
                     new_flow_str = f"{new_flow_val}"
                     
-                    # Create animation to change just the text value, preserving all other properties
-                    animations_for_current_edge_step.append(
-                        flow_text_mobj.animate.set_value(new_flow_str)
+                    # Create a new text object that's exactly the same as the old one but with new text
+                    new_flow_text = Text(
+                        new_flow_str,
+                        font_size=EDGE_FLOW_PREFIX_FONT_SIZE,
+                        color=LABEL_TEXT_COLOR
                     )
+                    
+                    # Match size and position
+                    new_flow_text.height = old_flow_text.height
+                    new_flow_text.move_to(old_flow_text.get_center())
+                    
+                    # Preserve rotation of the original text
+                    edge_mo = self.edge_mobjects[(u, v)]
+                    new_flow_text.rotate(edge_mo.get_angle())
+                    
+                    # Replace the old text mobject in the scene and in our data structures
+                    animations_for_current_edge_step.append(
+                        ReplacementTransform(old_flow_text, new_flow_text)
+                    )
+                    self.edge_flow_val_text_mobjects[(u, v)] = new_flow_text
+                    
             elif (v, u) in self.capacities:
                 # Reverse edge
                 self.flow[(v, u)] -= bottleneck
                 
-                # Update flow text by modifying the existing text mobject
+                # Update flow text
                 if (v, u) in self.edge_flow_val_text_mobjects:
-                    flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
+                    old_flow_text = self.edge_flow_val_text_mobjects[(v, u)]
                     new_flow_val = self.flow[(v, u)]
                     new_flow_str = f"{new_flow_val}"
                     
-                    # Create animation to change just the text value, preserving all other properties
-                    animations_for_current_edge_step.append(
-                        flow_text_mobj.animate.set_value(new_flow_str)
+                    # Create a new text object
+                    new_flow_text = Text(
+                        new_flow_str,
+                        font_size=EDGE_FLOW_PREFIX_FONT_SIZE,
+                        color=LABEL_TEXT_COLOR
                     )
+                    
+                    # Match size and position
+                    new_flow_text.height = old_flow_text.height
+                    new_flow_text.move_to(old_flow_text.get_center())
+                    
+                    # Preserve rotation of the original text
+                    edge_mo = self.edge_mobjects[(v, u)]
+                    new_flow_text.rotate(edge_mo.get_angle())
+                    
+                    # Replace the old text mobject
+                    animations_for_current_edge_step.append(
+                        ReplacementTransform(old_flow_text, new_flow_text)
+                    )
+                    self.edge_flow_val_text_mobjects[(v, u)] = new_flow_text
             
             path_augmentation_sequence.append(Succession(*animations_for_current_edge_step, lag_ratio=1.0))
         
@@ -744,6 +777,7 @@ def set_value(self, new_text):
     """Custom method to update Text content while preserving all other properties."""
     original_height = self.height
     original_position = self.get_center()
+    original_angle = self.get_angle() if hasattr(self, 'get_angle') else 0
     
     # Create a new text object with the same properties but new content
     updated_text = Text(
@@ -757,6 +791,8 @@ def set_value(self, new_text):
     # Match size and position
     updated_text.height = original_height
     updated_text.move_to(original_position)
+    if original_angle != 0:
+        updated_text.rotate(original_angle)
     
     # Copy all the important properties from the original text
     self.become(updated_text)
@@ -959,30 +995,63 @@ class FordFulkersonBFS(FordFulkersonVisualizer):
             if (u, v) in self.capacities:
                 self.flow[(u, v)] += bottleneck
                 
-                # Update flow text by modifying the existing text mobject
+                # Update flow text with a direct approach
                 if (u, v) in self.edge_flow_val_text_mobjects:
-                    flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
+                    old_flow_text = self.edge_flow_val_text_mobjects[(u, v)]
                     new_flow_val = self.flow[(u, v)]
                     new_flow_str = f"{new_flow_val}"
                     
-                    # Create animation to change just the text value, preserving all other properties
-                    animations_for_current_edge_step.append(
-                        flow_text_mobj.animate.set_value(new_flow_str)
+                    # Create a new text object that's exactly the same as the old one but with new text
+                    new_flow_text = Text(
+                        new_flow_str,
+                        font_size=EDGE_FLOW_PREFIX_FONT_SIZE,
+                        color=LABEL_TEXT_COLOR
                     )
+                    
+                    # Match size and position
+                    new_flow_text.height = old_flow_text.height
+                    new_flow_text.move_to(old_flow_text.get_center())
+                    
+                    # Preserve rotation of the original text
+                    edge_mo = self.edge_mobjects[(u, v)]
+                    new_flow_text.rotate(edge_mo.get_angle())
+                    
+                    # Replace the old text mobject in the scene and in our data structures
+                    animations_for_current_edge_step.append(
+                        ReplacementTransform(old_flow_text, new_flow_text)
+                    )
+                    self.edge_flow_val_text_mobjects[(u, v)] = new_flow_text
+                    
             elif (v, u) in self.capacities:
                 # Reverse edge
                 self.flow[(v, u)] -= bottleneck
                 
-                # Update flow text by modifying the existing text mobject
+                # Update flow text
                 if (v, u) in self.edge_flow_val_text_mobjects:
-                    flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
+                    old_flow_text = self.edge_flow_val_text_mobjects[(v, u)]
                     new_flow_val = self.flow[(v, u)]
                     new_flow_str = f"{new_flow_val}"
                     
-                    # Create animation to change just the text value, preserving all other properties
-                    animations_for_current_edge_step.append(
-                        flow_text_mobj.animate.set_value(new_flow_str)
+                    # Create a new text object
+                    new_flow_text = Text(
+                        new_flow_str,
+                        font_size=EDGE_FLOW_PREFIX_FONT_SIZE,
+                        color=LABEL_TEXT_COLOR
                     )
+                    
+                    # Match size and position
+                    new_flow_text.height = old_flow_text.height
+                    new_flow_text.move_to(old_flow_text.get_center())
+                    
+                    # Preserve rotation of the original text
+                    edge_mo = self.edge_mobjects[(v, u)]
+                    new_flow_text.rotate(edge_mo.get_angle())
+                    
+                    # Replace the old text mobject
+                    animations_for_current_edge_step.append(
+                        ReplacementTransform(old_flow_text, new_flow_text)
+                    )
+                    self.edge_flow_val_text_mobjects[(v, u)] = new_flow_text
             
             path_augmentation_sequence.append(Succession(*animations_for_current_edge_step, lag_ratio=1.0))
         
@@ -1383,31 +1452,63 @@ class FordFulkersonCapacityScaling(FordFulkersonVisualizer):
             if (u, v) in self.capacities:
                 self.flow[(u, v)] += bottleneck
                 
-                # Update flow text by modifying the existing text mobject
+                # Update flow text with a direct approach
                 if (u, v) in self.edge_flow_val_text_mobjects:
-                    flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
+                    old_flow_text = self.edge_flow_val_text_mobjects[(u, v)]
                     new_flow_val = self.flow[(u, v)]
                     new_flow_str = f"{new_flow_val}"
                     
-                    # Create animation to change just the text value, preserving all other properties
-                    animations_for_current_edge_step.append(
-                        flow_text_mobj.animate.set_value(new_flow_str)
+                    # Create a new text object that's exactly the same as the old one but with new text
+                    new_flow_text = Text(
+                        new_flow_str,
+                        font_size=EDGE_FLOW_PREFIX_FONT_SIZE,
+                        color=LABEL_TEXT_COLOR
                     )
+                    
+                    # Match size and position
+                    new_flow_text.height = old_flow_text.height
+                    new_flow_text.move_to(old_flow_text.get_center())
+                    
+                    # Preserve rotation of the original text
+                    edge_mo = self.edge_mobjects[(u, v)]
+                    new_flow_text.rotate(edge_mo.get_angle())
+                    
+                    # Replace the old text mobject in the scene and in our data structures
+                    animations_for_current_edge_step.append(
+                        ReplacementTransform(old_flow_text, new_flow_text)
+                    )
+                    self.edge_flow_val_text_mobjects[(u, v)] = new_flow_text
                     
             elif (v, u) in self.capacities:
                 # Reverse edge
                 self.flow[(v, u)] -= bottleneck
                 
-                # Update flow text by modifying the existing text mobject
+                # Update flow text
                 if (v, u) in self.edge_flow_val_text_mobjects:
-                    flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
+                    old_flow_text = self.edge_flow_val_text_mobjects[(v, u)]
                     new_flow_val = self.flow[(v, u)]
                     new_flow_str = f"{new_flow_val}"
                     
-                    # Create animation to change just the text value, preserving all other properties
-                    animations_for_current_edge_step.append(
-                        flow_text_mobj.animate.set_value(new_flow_str)
+                    # Create a new text object
+                    new_flow_text = Text(
+                        new_flow_str,
+                        font_size=EDGE_FLOW_PREFIX_FONT_SIZE,
+                        color=LABEL_TEXT_COLOR
                     )
+                    
+                    # Match size and position
+                    new_flow_text.height = old_flow_text.height
+                    new_flow_text.move_to(old_flow_text.get_center())
+                    
+                    # Preserve rotation of the original text
+                    edge_mo = self.edge_mobjects[(v, u)]
+                    new_flow_text.rotate(edge_mo.get_angle())
+                    
+                    # Replace the old text mobject
+                    animations_for_current_edge_step.append(
+                        ReplacementTransform(old_flow_text, new_flow_text)
+                    )
+                    self.edge_flow_val_text_mobjects[(v, u)] = new_flow_text
             
             path_augmentation_sequence.append(Succession(*animations_for_current_edge_step, lag_ratio=1.0))
         
