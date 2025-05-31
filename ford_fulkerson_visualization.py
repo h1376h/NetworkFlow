@@ -19,6 +19,32 @@ from manim import *
 import collections
 import numpy as np
 
+# Utility function to lighten colors for visualization
+def lighten_color(color, factor=0.5):
+    """
+    Lightens the given color by mixing it with white.
+    
+    Parameters:
+    color : str or array-like
+        Color to lighten in any format accepted by manim
+    factor : float
+        Factor to lighten by (0.0 to 1.0, where 0.0 is no change and 1.0 is white)
+    
+    Returns:
+    str : Lightened color in hex format
+    """
+    if isinstance(color, str):
+        # Convert hex or named color to RGB
+        rgb = color_to_rgb(color)
+    else:
+        rgb = color
+    
+    # Mix with white (1, 1, 1)
+    lightened = [c + (1 - c) * factor for c in rgb]
+    
+    # Convert back to hex
+    return rgb_to_hex(lightened)
+
 # --- Style and Layout Constants ---
 NODE_RADIUS = 0.28
 NODE_STROKE_WIDTH = 1.5
@@ -666,41 +692,29 @@ class BasicFordFulkersonDFS(FordFulkersonVisualizer):
             if (u, v) in self.capacities:
                 self.flow[(u, v)] += bottleneck
                 
-                # Update flow text
+                # Update flow text by modifying the existing text mobject
                 if (u, v) in self.edge_flow_val_text_mobjects:
-                    old_flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
+                    flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
                     new_flow_val = self.flow[(u, v)]
                     new_flow_str = f"{new_flow_val}"
-                    target_text = Text(new_flow_str, font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
                     
-                    # Preserve size and position
-                    target_text.height = old_flow_text_mobj.height
-                    target_text.move_to(old_flow_text_mobj.get_center())
-                    
-                    # Don't try to preserve rotation - Text objects don't have get_angle()
-                    
+                    # Create animation to change just the text value, preserving all other properties
                     animations_for_current_edge_step.append(
-                        old_flow_text_mobj.animate.become(target_text)
+                        flow_text_mobj.animate.set_value(new_flow_str)
                     )
             elif (v, u) in self.capacities:
                 # Reverse edge
                 self.flow[(v, u)] -= bottleneck
                 
-                # Update flow text
+                # Update flow text by modifying the existing text mobject
                 if (v, u) in self.edge_flow_val_text_mobjects:
-                    old_flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
+                    flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
                     new_flow_val = self.flow[(v, u)]
                     new_flow_str = f"{new_flow_val}"
-                    target_text = Text(new_flow_str, font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
                     
-                    # Preserve size and position
-                    target_text.height = old_flow_text_mobj.height
-                    target_text.move_to(old_flow_text_mobj.get_center())
-                    
-                    # Don't try to preserve rotation - Text objects don't have get_angle()
-                    
+                    # Create animation to change just the text value, preserving all other properties
                     animations_for_current_edge_step.append(
-                        old_flow_text_mobj.animate.become(target_text)
+                        flow_text_mobj.animate.set_value(new_flow_str)
                     )
             
             path_augmentation_sequence.append(Succession(*animations_for_current_edge_step, lag_ratio=1.0))
@@ -724,6 +738,32 @@ class BasicFordFulkersonDFS(FordFulkersonVisualizer):
             self.play(AnimationGroup(*reset_anims, lag_ratio=0.05), run_time=0.5)
         
         self.max_flow_value += bottleneck
+
+# Add a custom method to the Text class to update text content
+def set_value(self, new_text):
+    """Custom method to update Text content while preserving all other properties."""
+    original_height = self.height
+    original_position = self.get_center()
+    
+    # Create a new text object with the same properties but new content
+    updated_text = Text(
+        new_text,
+        font=self.font,
+        font_size=self.font_size,
+        color=self.get_color(),
+        weight=self.weight if hasattr(self, 'weight') else NORMAL
+    )
+    
+    # Match size and position
+    updated_text.height = original_height
+    updated_text.move_to(original_position)
+    
+    # Copy all the important properties from the original text
+    self.become(updated_text)
+    return self
+
+# Add the method to the Text class
+Text.set_value = set_value
 
 class FordFulkersonBFS(FordFulkersonVisualizer):
     """Ford-Fulkerson with BFS path finding (Edmonds-Karp algorithm)."""
@@ -919,41 +959,29 @@ class FordFulkersonBFS(FordFulkersonVisualizer):
             if (u, v) in self.capacities:
                 self.flow[(u, v)] += bottleneck
                 
-                # Update flow text
+                # Update flow text by modifying the existing text mobject
                 if (u, v) in self.edge_flow_val_text_mobjects:
-                    old_flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
+                    flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
                     new_flow_val = self.flow[(u, v)]
                     new_flow_str = f"{new_flow_val}"
-                    target_text = Text(new_flow_str, font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
                     
-                    # Preserve size and position
-                    target_text.height = old_flow_text_mobj.height
-                    target_text.move_to(old_flow_text_mobj.get_center())
-                    
-                    # Don't try to preserve rotation - Text objects don't have get_angle()
-                    
+                    # Create animation to change just the text value, preserving all other properties
                     animations_for_current_edge_step.append(
-                        old_flow_text_mobj.animate.become(target_text)
+                        flow_text_mobj.animate.set_value(new_flow_str)
                     )
             elif (v, u) in self.capacities:
                 # Reverse edge
                 self.flow[(v, u)] -= bottleneck
                 
-                # Update flow text
+                # Update flow text by modifying the existing text mobject
                 if (v, u) in self.edge_flow_val_text_mobjects:
-                    old_flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
+                    flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
                     new_flow_val = self.flow[(v, u)]
                     new_flow_str = f"{new_flow_val}"
-                    target_text = Text(new_flow_str, font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
                     
-                    # Preserve size and position
-                    target_text.height = old_flow_text_mobj.height
-                    target_text.move_to(old_flow_text_mobj.get_center())
-                    
-                    # Don't try to preserve rotation - Text objects don't have get_angle()
-                    
+                    # Create animation to change just the text value, preserving all other properties
                     animations_for_current_edge_step.append(
-                        old_flow_text_mobj.animate.become(target_text)
+                        flow_text_mobj.animate.set_value(new_flow_str)
                     )
             
             path_augmentation_sequence.append(Succession(*animations_for_current_edge_step, lag_ratio=1.0))
@@ -982,173 +1010,221 @@ class FordFulkersonComparison(Scene):
     """Explains why Ford-Fulkerson is a method and not an algorithm, by comparing different implementations."""
     
     def construct(self):
-        # Create title
-        title = Text("Ford-Fulkerson: A Method, Not an Algorithm", font_size=38)
-        title.to_edge(UP, buff=0.5)
-        self.play(Write(title))
-        self.wait(1.0)
+        # Using 3Blue1Brown style with darker background and more vibrant colors
+        self.camera.background_color = "#1C1C1C"  # Darker background like 3b1b
         
-        # Explanation text - made more concise and clear
-        explanation = Text(
-            "Ford-Fulkerson is a framework for finding max flow, with different\n"
-            "path-finding strategies leading to distinct algorithms:",
-            font_size=24
-        ).next_to(title, DOWN, buff=0.5)
-        self.play(Write(explanation))
-        self.wait(1.5)
+        # Create title with animation
+        title = Text("Ford-Fulkerson: A Method, Not an Algorithm", font_size=40)
+        title.to_edge(UP, buff=0.7)
         
-        # Create comparison table with improved layout
-        table_data = [
-            ["Algorithm", "Path Finding", "Time Complexity", "Key Feature"],
-            ["Basic Ford-Fulkerson", "DFS", "O(|E| · f)", "Simple but potentially slow"],
-            ["Edmonds-Karp", "BFS", "O(|V| · |E|²)", "Shortest augmenting paths"],
-            ["Capacity Scaling", "DFS with threshold", "O(|E|² · log(U))", "Prioritizes large capacities"]
+        # Animate title with fancy reveal
+        self.play(
+            Write(title, run_time=1.5)
+        )
+        self.wait(0.5)
+        
+        # Underline for title (3b1b style)
+        underline = Line(
+            start=title.get_corner(DL) + LEFT * 0.1,
+            end=title.get_corner(DR) + RIGHT * 0.1,
+            color=YELLOW_C,
+            stroke_width=3
+        )
+        self.play(Create(underline))
+        self.wait(0.5)
+        
+        # Main explanation with stepwise revealing
+        explanation_text = [
+            "Ford-Fulkerson provides a framework for finding maximum flow",
+            "by repeatedly finding augmenting paths until no more exist.",
+            "Different path-finding strategies lead to distinct algorithms",
+            "with varying performance characteristics."
         ]
         
-        # Create a better-looking table
-        table = VGroup()
-        rows = []
+        explanation_group = VGroup()
+        for i, line in enumerate(explanation_text):
+            text = Text(line, font_size=24, color=LIGHT_GRAY)
+            explanation_group.add(text)
         
-        # Table dimensions and styling
-        cell_height = 0.6
-        col_widths = [3.5, 2.7, 2.7, 4.0]
-        total_width = sum(col_widths)
-        table_top = 1.8
-        horizontal_padding = 0.2
+        explanation_group.arrange(DOWN, aligned_edge=LEFT, buff=0.2)
+        explanation_group.next_to(underline, DOWN, buff=0.5)
         
-        # Create background rectangles for rows
-        for i in range(len(table_data)):
-            y_pos = table_top - i * cell_height
-            
-            # Alternate row colors for better readability
-            fill_color = GREY_E if i == 0 else (GREY_D if i % 2 == 1 else GREY_E)
-            fill_opacity = 0.6 if i == 0 else 0.3
-            
-            row_rect = Rectangle(
-                width=total_width, 
-                height=cell_height,
-                fill_color=fill_color,
-                fill_opacity=fill_opacity,
-                stroke_color=GREY,
-                stroke_width=1
-            )
-            row_rect.move_to([0, y_pos - cell_height/2, 0])
-            table.add(row_rect)
-            
-            # Create a row group for cells
-            row = VGroup()
-            
-            # Add cells with proper alignment
-            x_start = -total_width/2
-            for j, width in enumerate(col_widths):
-                x_pos = x_start + width/2
-                
-                cell_text = table_data[i][j]
-                
-                # Use bold text for headers
-                weight = BOLD if i == 0 else NORMAL
-                font_size = 22 if i == 0 else 20
-                
-                cell = Text(
-                    cell_text, 
-                    font_size=font_size,
-                    weight=weight
-                )
-                
-                # Scale text to fit cell if needed
-                max_width = width - 2 * horizontal_padding
-                if cell.width > max_width:
-                    cell.scale_to_fit_width(max_width)
-                
-                cell.move_to([x_pos, y_pos - cell_height/2, 0])
-                row.add(cell)
-                x_start += width
-            
-            rows.append(row)
-            table.add(row)
+        # Reveal explanation line by line
+        for line in explanation_group:
+            self.play(FadeIn(line, shift=UP*0.3), run_time=0.7)
+            self.wait(0.3)
         
-        # Add vertical lines between columns
-        x_pos = -total_width/2
-        for i in range(len(col_widths) + 1):
-            line = Line(
-                [x_pos, table_top, 0], 
-                [x_pos, table_top - len(table_data) * cell_height, 0],
-                color=GREY,
-                stroke_width=1
-            )
-            table.add(line)
-            if i < len(col_widths):
-                x_pos += col_widths[i]
+        self.wait(1)
         
-        # Add horizontal lines
-        for i in range(len(table_data) + 1):
-            y_pos = table_top - i * cell_height
-            line = Line(
-                [-total_width/2, y_pos, 0], 
-                [total_width/2, y_pos, 0],
-                color=GREY,
-                stroke_width=1.5 if i <= 1 else 1  # Thicker line after header
-            )
-            table.add(line)
+        # Animate transition - fade explanation up and out of view
+        self.play(
+            explanation_group.animate.scale(0.8).to_edge(UP, buff=2.0).set_opacity(0.7),
+            run_time=1
+        )
         
-        # Position the table
-        table.center().shift(UP * 0.5)
+        # Core concept graphic
+        ff_core_concept = VGroup()
         
-        # Animate the table in a cleaner way
-        self.play(FadeIn(table), run_time=1.5)
-        self.wait(2)
-        
-        # Key differences explanation with improved formatting
-        difference_title = Text("Key Differences:", font_size=28, weight=BOLD).to_edge(LEFT, buff=1.0).shift(DOWN * 2.5)
-        
-        differences = [
-            "• Different path-finding strategies lead to different running times",
-            "• Greedy approaches can lead to suboptimal path selection",
-            "• Capacity scaling improves performance on large networks",
-            "• All variants guarantee finding the optimal max flow"
-        ]
-        
-        difference_points = VGroup()
-        for i, diff in enumerate(differences):
-            point = Text(diff, font_size=22)
-            point.align_to(difference_title, LEFT).shift(RIGHT * 0.5 + DOWN * (i * 0.6 + 0.8))
-            difference_points.add(point)
-        
-        self.play(Write(difference_title))
-        self.play(LaggedStart(*[FadeIn(point, shift=RIGHT*0.3) for point in difference_points], lag_ratio=0.3), run_time=2)
-        self.wait(2)
-        
-        # Conclusion with better formatting and emphasis
-        conclusion_box = RoundedRectangle(
-            width=12,
-            height=2.2,
+        # Central box for core concept
+        core_box = RoundedRectangle(
+            width=6,
+            height=1.5,
+            corner_radius=0.2,
             fill_color=BLUE_E,
-            fill_opacity=0.2,
+            fill_opacity=0.6,
             stroke_color=BLUE_C,
-            stroke_width=2,
-            corner_radius=0.2
-        ).to_edge(DOWN, buff=0.5)
+            stroke_width=2
+        )
         
-        conclusion_title = Text("Conclusion:", font_size=24, weight=BOLD, color=YELLOW)
-        conclusion_title.move_to(conclusion_box.get_corner(UL) + RIGHT * 0.3 + DOWN * 0.3)
+        # Core text
+        core_text = Text("Find augmenting paths & push flow until no more paths exist", 
+                         font_size=18, color=WHITE).move_to(core_box)
+        core_text.scale_to_fit_width(core_box.width - 0.4)
         
-        conclusion_text = Text(
-            "Ford-Fulkerson is a method that describes how to find max flow by iteratively\n"
-            "finding augmenting paths. The specific path-finding strategy determines the\n"
-            "actual algorithm and its performance characteristics.",
-            font_size=20,
-            color=WHITE
-        ).move_to(conclusion_box.get_center() + DOWN * 0.1)
-        
-        conclusion_group = VGroup(conclusion_box, conclusion_title, conclusion_text)
+        ff_core_concept.add(core_box, core_text)
+        ff_core_concept.move_to(ORIGIN).shift(UP * 1.5)
         
         self.play(
-            FadeIn(conclusion_box),
-            Write(conclusion_title),
-            Write(conclusion_text),
-            run_time=2
+            FadeIn(ff_core_concept, scale=1.1),
+            run_time=1
         )
-        self.wait(3)
+        self.wait(0.5)
+        
+        # Create three algorithm boxes with arrows from core concept
+        algorithms = [
+            {
+                "name": "Basic Ford-Fulkerson (DFS)",
+                "description": "Uses depth-first search\nto find augmenting paths",
+                "key_points": ["Simple implementation", "O(|E|·f) time complexity", "May be slow on large networks"],
+                "color": RED_D
+            },
+            {
+                "name": "Edmonds-Karp (BFS)",
+                "description": "Uses breadth-first search\nfor shortest augmenting paths",
+                "key_points": ["Finds shortest paths first", "O(|V|·|E|²) time complexity", "More efficient on typical graphs"],
+                "color": GREEN_D
+            },
+            {
+                "name": "Capacity Scaling",
+                "description": "Prioritizes paths with\nlarge residual capacities",
+                "key_points": ["Considers high-capacity edges first", "O(|E|²·log(U)) time complexity", "Efficient on networks with large capacities"],
+                "color": BLUE_D
+            }
+        ]
+        
+        algo_boxes = VGroup()
+        algo_descriptions = VGroup()
+        algo_key_points = VGroup()
+        arrows = VGroup()
+        
+        # Layout calculations
+        box_width = 3.8
+        box_height = 1.0
+        box_spacing = 4.2
+        start_x = -(box_spacing) * (len(algorithms) - 1) / 2
+        
+        for i, algo in enumerate(algorithms):
+            # Algorithm box
+            x_pos = start_x + i * box_spacing
+            algo_box = RoundedRectangle(
+                width=box_width,
+                height=box_height,
+                corner_radius=0.2,
+                fill_color=algo["color"],
+                fill_opacity=0.6,
+                stroke_color=lighten_color(algo["color"], 0.3),
+                stroke_width=2
+            )
+            algo_box.move_to([x_pos, -0.5, 0])
+            
+            algo_name = Text(algo["name"], font_size=20, color=WHITE)
+            algo_name.scale_to_fit_width(box_width - 0.3)
+            algo_name.move_to(algo_box)
+            
+            # Description below box
+            description = Text(algo["description"], font_size=18, color=LIGHT_GRAY)
+            description.scale_to_fit_width(box_width)
+            description.next_to(algo_box, DOWN, buff=0.3)
+            
+            # Key points below description
+            key_points_group = VGroup()
+            for j, point in enumerate(algo["key_points"]):
+                bullet = Text("•", font_size=16, color=lighten_color(algo["color"], 0.3))
+                point_text = Text(point, font_size=16, color=LIGHT_GRAY)
+                point_group = VGroup(bullet, point_text).arrange(RIGHT, buff=0.1, aligned_edge=UP)
+                key_points_group.add(point_group)
+            
+            key_points_group.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
+            key_points_group.next_to(description, DOWN, buff=0.3)
+            
+            # Arrow from core concept to algorithm
+            arrow = Arrow(
+                core_box.get_edge_center(DOWN) + DOWN * 0.1,
+                algo_box.get_edge_center(UP) + UP * 0.1,
+                color=lighten_color(algo["color"], 0.3),
+                buff=0.1,
+                stroke_width=2,
+                tip_length=0.2
+            )
+            
+            algo_boxes.add(VGroup(algo_box, algo_name))
+            algo_descriptions.add(description)
+            algo_key_points.add(key_points_group)
+            arrows.add(arrow)
+        
+        # Animate the arrows from core concept to algorithms
+        self.play(
+            *[Create(arrow) for arrow in arrows],
+            run_time=1.5
+        )
+        
+        # Animate the algorithm boxes
+        self.play(
+            *[FadeIn(box, scale=1.1) for box in algo_boxes],
+            run_time=1
+        )
+        
+        # Animate descriptions
+        self.play(
+            *[FadeIn(desc, shift=UP*0.2) for desc in algo_descriptions],
+            run_time=0.8
+        )
+        
+        # Animate key points for each algorithm
+        for points in algo_key_points:
+            self.play(
+                LaggedStart(*[FadeIn(point, shift=RIGHT*0.3) for point in points], lag_ratio=0.2),
+                run_time=1.2
+            )
+        
+        self.wait(1)
+        
+        # Conclusion banner at bottom
+        conclusion_banner = RoundedRectangle(
+            width=12,
+            height=0.8,
+            corner_radius=0.2,
+            fill_color="#2C2C2C",
+            fill_opacity=1,
+            stroke_color=YELLOW_C,
+            stroke_width=2
+        ).to_edge(DOWN, buff=0.4)
+        
+        conclusion_text = Text(
+            "All variants guarantee optimal max flow, but with different efficiency characteristics",
+            font_size=20,
+            color=YELLOW_C
+        )
+        conclusion_text.scale_to_fit_width(conclusion_banner.width - 0.5)
+        conclusion_text.move_to(conclusion_banner)
+        
+        self.play(
+            FadeIn(conclusion_banner),
+            Write(conclusion_text),
+            run_time=1.5
+        )
+        
+        self.wait(2)
 
 class FordFulkersonCapacityScaling(FordFulkersonVisualizer):
     """Ford-Fulkerson with capacity scaling approach."""
@@ -1307,41 +1383,30 @@ class FordFulkersonCapacityScaling(FordFulkersonVisualizer):
             if (u, v) in self.capacities:
                 self.flow[(u, v)] += bottleneck
                 
-                # Update flow text
+                # Update flow text by modifying the existing text mobject
                 if (u, v) in self.edge_flow_val_text_mobjects:
-                    old_flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
+                    flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
                     new_flow_val = self.flow[(u, v)]
                     new_flow_str = f"{new_flow_val}"
-                    target_text = Text(new_flow_str, font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
                     
-                    # Preserve size and position
-                    target_text.height = old_flow_text_mobj.height
-                    target_text.move_to(old_flow_text_mobj.get_center())
-                    
-                    # Don't try to preserve rotation - Text objects don't have get_angle()
-                    
+                    # Create animation to change just the text value, preserving all other properties
                     animations_for_current_edge_step.append(
-                        old_flow_text_mobj.animate.become(target_text)
+                        flow_text_mobj.animate.set_value(new_flow_str)
                     )
+                    
             elif (v, u) in self.capacities:
                 # Reverse edge
                 self.flow[(v, u)] -= bottleneck
                 
-                # Update flow text
+                # Update flow text by modifying the existing text mobject
                 if (v, u) in self.edge_flow_val_text_mobjects:
-                    old_flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
+                    flow_text_mobj = self.edge_flow_val_text_mobjects[(v, u)]
                     new_flow_val = self.flow[(v, u)]
                     new_flow_str = f"{new_flow_val}"
-                    target_text = Text(new_flow_str, font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
                     
-                    # Preserve size and position
-                    target_text.height = old_flow_text_mobj.height
-                    target_text.move_to(old_flow_text_mobj.get_center())
-                    
-                    # Don't try to preserve rotation - Text objects don't have get_angle()
-                    
+                    # Create animation to change just the text value, preserving all other properties
                     animations_for_current_edge_step.append(
-                        old_flow_text_mobj.animate.become(target_text)
+                        flow_text_mobj.animate.set_value(new_flow_str)
                     )
             
             path_augmentation_sequence.append(Succession(*animations_for_current_edge_step, lag_ratio=1.0))
