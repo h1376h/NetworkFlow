@@ -808,6 +808,22 @@ class FordFulkersonComparison(Scene):
             "t": RIGHT * 1.5
         }
         
+        # Define edge capacities for the network
+        edge_capacities = {
+            ("s", "a"): "16",
+            ("s", "b"): "4", 
+            ("a", "t"): "12",
+            ("b", "t"): "8",
+            ("a", "b"): "10"
+        }
+        
+        # Calculate the maximum capacity for delta
+        max_capacity = max([int(cap) for cap in edge_capacities.values()])
+        # Find the largest power of 2 that is <= max_capacity
+        delta_value = 1
+        while delta_value * 2 <= max_capacity:
+            delta_value *= 2
+        
         nodes = {}
         for label, pos in node_positions.items():
             # Create node with glow effect (3b1b style)
@@ -830,13 +846,7 @@ class FordFulkersonComparison(Scene):
             diagram.add(node)
         
         # Create edges with capacities
-        edges = [
-            ("s", "a", "16"),
-            ("s", "b", "4"),
-            ("a", "t", "12"),
-            ("b", "t", "8"),
-            ("a", "b", "10")
-        ]
+        edges = [(u, v, cap) for (u, v), cap in edge_capacities.items()]
         
         edge_objects = {}
         capacity_labels = {}
@@ -899,7 +909,7 @@ class FordFulkersonComparison(Scene):
             stroke_color=BLUE_A,
             stroke_width=2
         )
-        delta_text = Text("Δ = 8", font_size=20, color=WHITE)
+        delta_text = Text(f"Δ = {delta_value}", font_size=20, color=WHITE)
         delta_text.move_to(delta_box)
         delta_group = VGroup(delta_box, delta_text)
         
@@ -1019,22 +1029,21 @@ class FordFulkersonComparison(Scene):
         self.play(FadeIn(dfs_network, scale=1.1), run_time=1.2)
         self.wait(0.8)
         
-        # Demonstrate DFS traversal
-        path_sequence = [
-            ["s", "a"], ["a", "b"], ["b", "t"],  # First path s->a->b->t
-            ["s", "a"], ["a", "d"], ["d", "b"], ["b", "t"],  # Second path s->a->d->b->t
-            ["s", "c"], ["c", "d"], ["d", "t"]   # Third path s->c->d->t
+        # Demonstrate DFS traversal with valid paths from s to t
+        # Each sublist represents one complete path from s to t
+        valid_paths = [
+            [("s", "a"), ("a", "b"), ("b", "t")],         # First path: s->a->b->t
+            [("s", "a"), ("a", "d"), ("d", "t")],         # Second path: s->a->d->t
+            [("s", "c"), ("c", "d"), ("d", "t")]          # Third path: s->c->d->t
         ]
         
         # Show DFS path finding step by step
         path_visualizations = []
         
-        for i in range(0, len(path_sequence), 3):  # Group paths in threes
-            path_group = path_sequence[i:i+3]
-            
+        for path_idx, path in enumerate(valid_paths):
             # Create arrows for this path
             path_arrows = VGroup()
-            for u, v in path_group:
+            for u, v in path:
                 if u in nodes and v in nodes:
                     start = nodes[u].get_center()
                     end = nodes[v].get_center()
@@ -1057,26 +1066,26 @@ class FordFulkersonComparison(Scene):
                 run_time=1.5
             )
             
-            # Animate flow if this is a complete path
-            if len(path_group) == 3 and path_group[-1][1] == "t":
-                flow_pulses = []
-                for arrow in path_arrows:
-                    pulse = arrow.copy().set_color(RED_A).set_stroke(width=6)
-                    flow_pulses.append(ShowPassingFlash(pulse, time_width=0.5, run_time=1.2))
-                
-                self.play(LaggedStart(*flow_pulses, lag_ratio=0.2), run_time=1.8)
-            
-            self.wait(0.5)
-            
             # Add path index
-            path_index = Text(f"Path {len(path_visualizations)}", font_size=20, color=RED_C)
+            path_index = Text(f"Path {path_idx+1}", font_size=20, color=RED_C)
             path_index.to_corner(DR, buff=0.5)
             self.play(FadeIn(path_index), run_time=0.5)
-            self.wait(0.7)
-            self.play(FadeOut(path_index), run_time=0.5)
             
-            # Important: Always fade out path arrows after each demonstration
-            self.play(FadeOut(path_arrows), run_time=0.8)
+            # Animate flow if this is a complete path
+            flow_pulses = []
+            for arrow in path_arrows:
+                pulse = arrow.copy().set_color(RED_A).set_stroke(width=6)
+                flow_pulses.append(ShowPassingFlash(pulse, time_width=0.5, run_time=1.2))
+            
+            self.play(LaggedStart(*flow_pulses, lag_ratio=0.2), run_time=1.8)
+            self.wait(0.7)
+            
+            # Clean up after each path demonstration
+            self.play(
+                FadeOut(path_index),
+                FadeOut(path_arrows),
+                run_time=0.8
+            )
         
         # Add key characteristics
         characteristics = VGroup()
