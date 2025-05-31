@@ -282,6 +282,7 @@ class FordFulkersonComparison(Scene):
         algo_key_points = VGroup()
         algo_diagrams = VGroup()
         
+        # Improved layout for better visualization
         for i, algo in enumerate(algorithms):
             # Get the algorithm box from earlier
             algo_box = algo_boxes[i]
@@ -296,7 +297,15 @@ class FordFulkersonComparison(Scene):
             
             key_points_group.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
             
-            # Add algorithm visualization diagram
+            # Position key points at the same level for all algorithms
+            x_pos = start_x + i * box_spacing
+            key_points_group.move_to([x_pos, -2.0, 0], aligned_edge=UP)
+            
+            algo_key_points.add(key_points_group)
+        
+        # Separate step to create diagrams with better spacing
+        for i, algo in enumerate(algorithms):
+            # Add algorithm visualization diagram - smaller scale for better fit
             if i == 0:
                 diagram = self.create_dfs_diagram()
             elif i == 1:
@@ -304,14 +313,13 @@ class FordFulkersonComparison(Scene):
             else:
                 diagram = self.create_scaling_diagram()
             
-            diagram.scale(0.45)
+            # Scale diagrams smaller to fit better
+            diagram.scale(0.35)
             
-            # Position key points and diagram
+            # Position the diagrams in a row at the bottom
             x_pos = start_x + i * box_spacing
-            key_points_group.move_to([x_pos, -2.0, 0], aligned_edge=UP)
-            diagram.next_to(key_points_group, DOWN, buff=0.4)
+            diagram.move_to([x_pos, -3.6, 0]) # Position lower
             
-            algo_key_points.add(key_points_group)
             algo_diagrams.add(diagram)
         
         # Animate arrows and algorithm boxes
@@ -331,25 +339,46 @@ class FordFulkersonComparison(Scene):
             run_time=0.8
         )
         
-        # Animate key points for each algorithm
-        for points in algo_key_points:
-            self.play(
-                LaggedStart(*[FadeIn(point, shift=RIGHT*0.3) for point in points], lag_ratio=0.2),
-                run_time=1.2
-            )
-        
-        # Animate algorithm diagrams
+        # Animate key points for each algorithm with improved animation
         self.play(
-            *[FadeIn(diagram, scale=1.1) for diagram in algo_diagrams],
+            *[FadeIn(points, shift=RIGHT*0.3) for points in algo_key_points],
             run_time=1.2
         )
         
-        self.wait(2.0)
+        self.wait(0.5)
+        
+        # Create a title for the algorithm visualizations
+        compare_title = Text("Algorithm Comparison", font_size=24, color=YELLOW_C)
+        compare_title.move_to([0, -3.1, 0])
+        
+        self.play(
+            FadeIn(compare_title, shift=UP*0.3),
+            run_time=0.8
+        )
+        
+        # Animate algorithm diagrams one by one with emphasizing effects
+        for i, diagram in enumerate(algo_diagrams):
+            diagram_copy = diagram.copy()
+            # Start with diagram at slightly larger scale
+            diagram_copy.scale(1.2)
+            diagram_copy.set_opacity(0.5)
+            
+            # Animate appearance with fancy effect
+            self.play(
+                Transform(diagram_copy, diagram),
+                run_time=0.8
+            )
+            self.remove(diagram_copy)
+            self.add(diagram)
+            
+            self.wait(0.3)
+        
+        self.wait(1.5)
         
         # Group all elements for easier fade out
         complete_algorithm_tree = VGroup(
             ff_core_concept, algo_boxes, algo_descriptions, 
-            arrows, algo_key_points, algo_diagrams
+            arrows, algo_key_points, algo_diagrams, compare_title
         )
         
         # Fade out the complete tree
@@ -946,7 +975,7 @@ class FordFulkersonComparison(Scene):
         
         # Create a small network example specifically for DFS
         dfs_network, nodes = self.create_network_example(
-            title_text="Depth-First Search Example", 
+            title_text="", # Remove title text to avoid overlapping
             scale_factor=1.1,
             custom_position=ORIGIN + DOWN * 0.5  # Position slightly lower to avoid overlapping
         )
@@ -1011,9 +1040,8 @@ class FordFulkersonComparison(Scene):
             self.wait(0.7)
             self.play(FadeOut(path_index), run_time=0.5)
             
-            # Fade out current path before showing next
-            if i + 3 < len(path_sequence):
-                self.play(FadeOut(path_arrows), run_time=0.8)
+            # Important: Always fade out path arrows after each demonstration
+            self.play(FadeOut(path_arrows), run_time=0.8)
         
         # Add key characteristics
         characteristics = VGroup()
@@ -1038,15 +1066,21 @@ class FordFulkersonComparison(Scene):
         
         self.wait(2.0)
         
-        # Ensure complete cleanup
-        all_elements = VGroup(dfs_network, characteristics, description, title)
+        # Ensure complete cleanup - explicitly check and remove any remaining path arrows
+        remaining_objects = VGroup()
+        
         for arrows in path_visualizations:
+            # Check if this object is still in the scene
             if arrows in self.mobjects:
-                all_elements.add(arrows)
+                remaining_objects.add(arrows)
+        
+        # Add main elements to cleanup group
+        all_elements = VGroup(dfs_network, characteristics, description, title)
         
         # Fade out everything
         self.play(
             FadeOut(all_elements),
+            FadeOut(remaining_objects),
             run_time=1.0
         )
         
@@ -1072,7 +1106,7 @@ class FordFulkersonComparison(Scene):
         
         # Create a small network example specifically for BFS
         bfs_network, nodes = self.create_network_example(
-            title_text="Breadth-First Search Example", 
+            title_text="", # Remove title text to avoid overlapping
             scale_factor=1.1,
             custom_position=ORIGIN + DOWN * 0.5  # Position slightly lower to avoid overlapping
         )
@@ -1258,12 +1292,21 @@ class FordFulkersonComparison(Scene):
         
         self.wait(2.0)
         
+        # Ensure complete cleanup - explicitly check and remove any remaining path arrows
+        remaining_objects = VGroup()
+        
+        for arrows in path_visualizations:
+            # Check if this object is still in the scene
+            if arrows in self.mobjects:
+                remaining_objects.add(arrows)
+        
+        # Add main elements to cleanup group
+        all_elements = VGroup(bfs_network, characteristics, description, title)
+        
         # Fade out everything
         self.play(
-            FadeOut(bfs_network),
-            FadeOut(characteristics),
-            FadeOut(description),
-            FadeOut(title),
+            FadeOut(all_elements),
+            FadeOut(remaining_objects),
             run_time=1.0
         )
         
@@ -1289,7 +1332,7 @@ class FordFulkersonComparison(Scene):
         
         # Create a small network example specifically for capacity scaling
         scaling_network, nodes = self.create_network_example(
-            title_text="Capacity Scaling Example", 
+            title_text="", # Remove title text to avoid overlapping
             scale_factor=1.1,
             custom_position=ORIGIN + DOWN * 0.5  # Position slightly lower to avoid overlapping
         )
@@ -1300,6 +1343,9 @@ class FordFulkersonComparison(Scene):
         
         # Show capacity scaling phases with different delta values
         delta_values = [8, 4, 2, 1]  # Powers of 2, decreasing
+        
+        # Store all highlighted edges for proper cleanup
+        all_highlighted_edges = []
         
         for delta in delta_values:
             # Show delta value
@@ -1340,6 +1386,7 @@ class FordFulkersonComparison(Scene):
                     high_capacity_edges.add(edge)
             
             highlighted_edges.append(high_capacity_edges)
+            all_highlighted_edges.append(high_capacity_edges)
             
             # Animate highlighting of high-capacity edges
             self.play(
@@ -1370,7 +1417,7 @@ class FordFulkersonComparison(Scene):
             
             self.wait(1.0)
             
-            # Clean up before next delta
+            # Clean up before next delta - important to explicitly fade out edges
             self.play(
                 FadeOut(delta_text),
                 FadeOut(phase_explanation),
@@ -1401,15 +1448,21 @@ class FordFulkersonComparison(Scene):
         
         self.wait(2.0)
         
-        # Ensure complete cleanup
-        all_elements = VGroup(scaling_network, characteristics, description, title)
-        for edges in highlighted_edges:
+        # Ensure complete cleanup - explicitly check and remove any remaining highlighted edges
+        remaining_objects = VGroup()
+        
+        for edges in all_highlighted_edges:
+            # Check if this object is still in the scene
             if edges in self.mobjects:
-                all_elements.add(edges)
+                remaining_objects.add(edges)
+        
+        # Add main elements to cleanup group
+        all_elements = VGroup(scaling_network, characteristics, description, title)
         
         # Fade out everything
         self.play(
             FadeOut(all_elements),
+            FadeOut(remaining_objects),
             run_time=1.0
         )
         
