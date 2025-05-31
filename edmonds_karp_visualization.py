@@ -797,7 +797,7 @@ class EdmondsKarpVisualizer(Scene):
         # Define layout for nodes
         self.graph_layout = {
             1: [-4,0,0], 2:[-2,1.5,0], 3:[-2,0,0], 4:[-2,-1.5,0], 5:[-0.5,0.75,0], 6:[-0.5,-0.75,0],
-            7: [1,1.5,0], 8:[1,0,0], 9:[1,-1.5,0], 10:[2.5,0,0]
+            7: [1,1.5,0], 8:[1,0,0], 9:[1,-1.5,0], 10:[3,0,0]
         }
         
         # Dictionaries to store mobjects for nodes, edges, and labels
