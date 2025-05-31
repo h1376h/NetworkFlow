@@ -819,9 +819,9 @@ class FordFulkersonComparison(Scene):
         
         # Calculate the maximum capacity for delta
         max_capacity = max([int(cap) for cap in edge_capacities.values()])
-        # Find the largest power of 2 that is <= max_capacity
+        # Find the largest power of 2 that is < max_capacity (not <=)
         delta_value = 1
-        while delta_value * 2 <= max_capacity:
+        while delta_value * 2 < max_capacity:
             delta_value *= 2
         
         nodes = {}
@@ -1388,6 +1388,14 @@ class FordFulkersonComparison(Scene):
         # Show capacity scaling phases with different delta values
         delta_values = [8, 4, 2, 1]  # Powers of 2, decreasing
         
+        # Define valid paths for each delta value (all from s to t)
+        delta_paths = {
+            8: [("s", "a"), ("a", "b"), ("b", "t")],  # Path with highest capacity edges
+            4: [("s", "a"), ("a", "d"), ("d", "t")],  # Another valid path
+            2: [("s", "c"), ("c", "d"), ("d", "t")],  # Path with medium capacity
+            1: [("s", "c"), ("c", "d"), ("d", "t")]   # Smallest capacity path that's still valid
+        }
+        
         # Store all highlighted edges for proper cleanup
         all_highlighted_edges = []
         
@@ -1397,21 +1405,8 @@ class FordFulkersonComparison(Scene):
             delta_text.to_corner(UL, buff=0.8)  # Increased buffer
             self.play(FadeIn(delta_text), run_time=0.8)
             
-            # Highlight edges with capacity >= delta
-            highlighted_edges = []
-            
-            if delta == 8:
-                # For delta=8, highlight s->a->b->t and s->c->d->t
-                edge_pairs = [("s", "a"), ("a", "b"), ("b", "t"), ("s", "c"), ("c", "d"), ("d", "t")]
-            elif delta == 4:
-                # For delta=4, highlight s->a->d->t
-                edge_pairs = [("s", "a"), ("a", "d"), ("d", "t")]
-            elif delta == 2:
-                # For delta=2, highlight s->c->d->b->t
-                edge_pairs = [("s", "c"), ("c", "d"), ("d", "b"), ("b", "t")]
-            else:  # delta = 1
-                # For delta=1, highlight any remaining paths
-                edge_pairs = [("a", "c"), ("c", "d"), ("d", "b")]
+            # Get valid path for this delta value
+            edge_pairs = delta_paths[delta]
             
             high_capacity_edges = VGroup()
             for u, v in edge_pairs:
@@ -1429,7 +1424,6 @@ class FordFulkersonComparison(Scene):
                     )
                     high_capacity_edges.add(edge)
             
-            highlighted_edges.append(high_capacity_edges)
             all_highlighted_edges.append(high_capacity_edges)
             
             # Animate highlighting of high-capacity edges
@@ -1446,18 +1440,13 @@ class FordFulkersonComparison(Scene):
             phase_explanation.to_corner(DR, buff=0.5)
             self.play(FadeIn(phase_explanation), run_time=0.5)
             
-            # Show augmenting path if any
-            if len(edge_pairs) >= 3:
-                # Choose first 3 edges as an example path
-                path_edges = VGroup(*[high_capacity_edges[i] for i in range(min(3, len(high_capacity_edges)))])
-                
-                # Pulse effect for augmenting flow
-                flow_pulses = []
-                for edge in path_edges:
-                    pulse = edge.copy().set_color(BLUE_A).set_stroke(width=6)
-                    flow_pulses.append(ShowPassingFlash(pulse, time_width=0.5, run_time=1.2))
-                
-                self.play(LaggedStart(*flow_pulses, lag_ratio=0.2), run_time=1.8)
+            # Pulse effect for augmenting flow
+            flow_pulses = []
+            for edge in high_capacity_edges:
+                pulse = edge.copy().set_color(BLUE_A).set_stroke(width=6)
+                flow_pulses.append(ShowPassingFlash(pulse, time_width=0.5, run_time=1.2))
+            
+            self.play(LaggedStart(*flow_pulses, lag_ratio=0.2), run_time=1.8)
             
             self.wait(1.0)
             
