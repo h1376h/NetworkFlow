@@ -384,7 +384,7 @@ class EdmondsKarpVisualizer(Scene):
                 # Show exploring this edge if it exists
                 if edge_mo:
                     neighbor_name = "s" if neighbor == self.source_node else "t" if neighbor == self.sink_node else str(neighbor)
-                    self.update_status_text(f"BFS: Checking edge {current_display_name} → {neighbor_name} (Residual cap: {residual_cap})", 
+                    self.update_status_text(f"BFS: Checking edge {current_display_name} → {neighbor_name} (Residual cap: {self._format_number(residual_cap)})", 
                                           color=WHITE, play_anim=True)
                     self.play(edge_mo.animate.set_color(YELLOW_C).set_opacity(0.7), run_time=0.2)
                     self.wait(0.3)
@@ -407,7 +407,7 @@ class EdmondsKarpVisualizer(Scene):
                         bfs_traversal_highlights.add(neighbor_highlight)
                         
                         # Animate the successful edge traversal
-                        self.update_status_text(f"BFS: Found edge with residual capacity {residual_cap}. Adding {neighbor_name} to queue.", 
+                        self.update_status_text(f"BFS: Found edge with residual capacity {self._format_number(residual_cap)}. Adding {neighbor_name} to queue.", 
                                               color=GREEN_C, play_anim=True)
                         self.play(
                             edge_mo.animate.set_color(BLUE_C).set_opacity(1.0).set_stroke(width=BFS_EDGE_HIGHLIGHT_WIDTH),
@@ -475,7 +475,7 @@ class EdmondsKarpVisualizer(Scene):
             path_edges.reverse()
             
             # Highlight the augmenting path
-            self.update_status_text(f"BFS: Found augmenting path with bottleneck flow {bottleneck_flow}.", 
+            self.update_status_text(f"BFS: Found augmenting path with bottleneck flow {self._format_number(bottleneck_flow)}.", 
                                   color=GREEN_B, play_anim=True)
             
             # Highlight edges in the path
@@ -518,7 +518,7 @@ class EdmondsKarpVisualizer(Scene):
         self.wait(1.5)
         
         # Set status and action text
-        self.update_status_text(f"Augmenting flow by {bottleneck_flow} along the path...", color=GREEN_B, play_anim=True)
+        self.update_status_text(f"Augmenting flow by {self._format_number(bottleneck_flow)} along the path...", color=GREEN_B, play_anim=True)
         self._update_action_text("augment", animate=True)
         self.wait(1.0)
         
@@ -602,7 +602,7 @@ class EdmondsKarpVisualizer(Scene):
                 bottleneck_edges.append(self.edge_mobjects[edge_key])
         
         if bottleneck_edges:
-            self.update_status_text(f"Highlighting bottleneck edges with capacity {bottleneck_flow}...", 
+            self.update_status_text(f"Highlighting bottleneck edges with capacity {self._format_number(bottleneck_flow)}...", 
                                   color=YELLOW_A, play_anim=True)
             bottleneck_anims = [
                 Indicate(edge, color=BOTTLENECK_EDGE_INDICATE_COLOR, scale_factor=1.05, run_time=1.2)
@@ -612,7 +612,7 @@ class EdmondsKarpVisualizer(Scene):
             self.wait(0.5)
         
         # Animate flow augmentation along the path
-        self.update_status_text(f"Sending {bottleneck_flow} units of flow along the path...", 
+        self.update_status_text(f"Sending {self._format_number(bottleneck_flow)} units of flow along the path...", 
                               color=GREEN_A, play_anim=True)
         self.wait(0.5)
         
@@ -648,7 +648,7 @@ class EdmondsKarpVisualizer(Scene):
             if (u, v) in self.original_edge_tuples:
                 old_flow_text = self.edge_flow_val_text_mobjects[(u, v)]
                 new_flow_val = self.flow[(u, v)]
-                new_flow_str = f"{int(new_flow_val) if new_flow_val == int(new_flow_val) else new_flow_val:.1f}"
+                new_flow_str = self._format_number(new_flow_val)
                 target_text = Text(
                     new_flow_str, 
                     font=old_flow_text.font, 
@@ -701,7 +701,7 @@ class EdmondsKarpVisualizer(Scene):
                             new_rev_flow = self.flow.get((u, v), 0)  # Residual capacity on reverse = flow on forward
                             if new_rev_flow > 0:
                                 target_rev_label = Text(
-                                    f"{new_rev_flow:.0f}", 
+                                    self._format_number(new_rev_flow), 
                                     font=rev_label.font, 
                                     font_size=rev_label.font_size, 
                                     color=REVERSE_EDGE_COLOR
@@ -747,7 +747,7 @@ class EdmondsKarpVisualizer(Scene):
         
         # Clear action text and update status
         self._update_action_text("nothing", animate=True)
-        self.update_status_text(f"Flow augmented by {bottleneck_flow}. Current maximum flow: {self.max_flow_value}.", 
+        self.update_status_text(f"Flow augmented by {self._format_number(bottleneck_flow)}. Current maximum flow: {self._format_number(self.max_flow_value)}.", 
                               color=WHITE, play_anim=True)
         self.wait(1.0)
         
@@ -796,8 +796,8 @@ class EdmondsKarpVisualizer(Scene):
             
         # Define layout for nodes
         self.graph_layout = {
-            1: [-4,0,0], 2:[-2,1,0], 3:[-2,0,0], 4:[-2,-1,0], 5:[-0.5,0.75,0], 6:[-0.5,-0.75,0],
-            7: [1,1,0], 8:[1,0,0], 9:[1,-1,0], 10:[2.5,0,0]
+            1: [-4,0,0], 2:[-2,1.5,0], 3:[-2,0,0], 4:[-2,-1.5,0], 5:[-0.5,0.75,0], 6:[-0.5,-0.75,0],
+            7: [1,1.5,0], 8:[1,0,0], 9:[1,-1.5,0], 10:[2.5,0,0]
         }
         
         # Dictionaries to store mobjects for nodes, edges, and labels
@@ -810,7 +810,7 @@ class EdmondsKarpVisualizer(Scene):
         self.base_label_visual_attrs = {}
         self.edge_residual_capacity_mobjects = {}
         
-        self.desired_large_scale = 1.6  # Scale factor for the main graph display
+        self.desired_large_scale = 1.1  # Scale factor for the main graph display
         
         # Create and animate node mobjects (dots and labels)
         nodes_vgroup = VGroup()
@@ -1062,7 +1062,7 @@ class EdmondsKarpVisualizer(Scene):
         self.update_section_title("3. Edmonds-Karp Algorithm Summary", play_anim=True)
         self.wait(1.0)
         
-        self.update_status_text(f"Algorithm concluded. Final max flow: {self.max_flow_value}", 
+        self.update_status_text(f"Algorithm concluded. Final max flow: {self._format_number(self.max_flow_value)}", 
                               color=GREEN_A, play_anim=True)
         self.wait(1.0)
         
@@ -1074,7 +1074,7 @@ class EdmondsKarpVisualizer(Scene):
             "3. The algorithm terminates when no more augmenting paths exist"
         )
         self.update_status_text(summary_text, color=YELLOW_B, play_anim=True)
-        self.wait(2.0)
+        self.wait(4.0)
         
         # Final animation for emphasis
         if hasattr(self, 'node_mobjects') and self.node_mobjects and \
@@ -1105,15 +1105,18 @@ class EdmondsKarpVisualizer(Scene):
             if final_anims:
                 self.play(*final_anims, run_time=2.0)
         
-        # Clean up, leaving only titles and final status
-        final_fade_group = Group()
-        keep_mobjects = Group(self.main_title, self.info_texts_group)
-        
-        for mobj in self.mobjects:
-            if mobj not in keep_mobjects and not any(mobj in keep_mob.get_family() for keep_mob in keep_mobjects):
-                final_fade_group.add(mobj)
-                
-        if final_fade_group.submobjects:
-            self.play(FadeOut(final_fade_group, run_time=1.0))
-            
-        self.wait(3.0) 
+        self.wait(3.0)
+
+        # Clean up scene, leaving only titles and final status
+        mobjects_that_should_remain_on_screen = Group(self.main_title, self.info_texts_group)
+        mobjects_that_should_remain_on_screen.remove(*[m for m in mobjects_that_should_remain_on_screen if not isinstance(m, Mobject)])
+        final_mobjects_to_fade_out = Group()
+        all_descendants_of_kept_mobjects = set()
+        for mobj_to_keep in mobjects_that_should_remain_on_screen:
+            all_descendants_of_kept_mobjects.update(mobj_to_keep.get_family())
+        for mobj_on_scene in list(self.mobjects):
+            if mobj_on_scene not in all_descendants_of_kept_mobjects:
+                final_mobjects_to_fade_out.add(mobj_on_scene)
+        if final_mobjects_to_fade_out.submobjects:
+            self.play(FadeOut(final_mobjects_to_fade_out, run_time=1.0))
+        self.wait(6)
