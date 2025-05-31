@@ -1031,21 +1031,6 @@ class EdmondsKarpVisualizer(Scene):
         self.update_section_title("2. Running Edmonds-Karp Algorithm", play_anim=True)
         self.wait(1.0)
         
-        # Explain the algorithm
-        algorithm_explanation = (
-            "Edmonds-Karp is a specific implementation of the Ford-Fulkerson algorithm\n"
-            "that always uses BFS to find the shortest augmenting path."
-        )
-        self.update_status_text(algorithm_explanation, color=BLUE_B, play_anim=True)
-        self.wait(2.0)
-        
-        complexity_explanation = (
-            "Using BFS ensures the algorithm runs in O(VE²) time,\n"
-            "where V is the number of vertices and E is the number of edges."
-        )
-        self.update_status_text(complexity_explanation, color=BLUE_B, play_anim=True)
-        self.wait(2.0)
-        
         # Main algorithm loop
         while True:
             self.current_iteration_num += 1
