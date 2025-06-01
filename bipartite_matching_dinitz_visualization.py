@@ -1,6 +1,7 @@
 from manim import *
 import collections
 import numpy as np
+import os
 
 # --- Style and Layout Constants ---
 NODE_RADIUS = 0.28
@@ -8,6 +9,14 @@ NODE_STROKE_WIDTH = 1.5
 EDGE_STROKE_WIDTH = 3.5
 ARROW_TIP_LENGTH = 0.16
 REVERSE_ARROW_TIP_LENGTH = 0.12 # New constant for smaller reverse arrowheads
+
+# New constants for bipartite matching
+STUDENT_BOOK_SPACING = 3.0  # Horizontal spacing between student and book columns
+BOOK_COLOR = "#4e73a8"  # Book node color (from the SVG)
+STUDENT_COLOR = "#FF6243"  # Student node color (from the SVG)
+SOURCE_COLOR = GREEN_D
+SINK_COLOR = RED_D
+LINE_SPACING = 1.0  # Vertical spacing between nodes in the same column
 
 MAIN_TITLE_FONT_SIZE = 38
 SECTION_TITLE_FONT_SIZE = 28 # For text below main title
@@ -711,7 +720,7 @@ class DinitzAlgorithmVisualizer(Scene):
         
     def construct(self):
         # Main method to construct and run the Dinitz algorithm visualization.
-        # Sets up the graph, then iteratively builds level graphs and finds blocking flows.
+        # Sets up the bipartite graph, converts it to a flow network, then uses Dinitz's algorithm to find maximum matching.
 
         self.setup_titles_and_placeholders() # Initialize all text mobjects
         if self.sink_action_text_mobj not in self.mobjects: # Ensure sink action text is on scene
@@ -721,181 +730,28 @@ class DinitzAlgorithmVisualizer(Scene):
         self.wait(1.5)
 
         self.scaled_flow_text_height = None # Will be set after labels are created
-        self.update_section_title("1. Building the Flow Network", play_anim=True)
-
+        
         # Initialize algorithm variables
         self.current_phase_num = 0
         self.max_flow_value = 0
 
-        # Define graph structure (nodes, edges, capacities)
-        self.source_node, self.sink_node = 1, 10
-        self.vertices_data = list(range(1, 11))
-        self.edges_with_capacity_list = [
-            (1,2,25),(1,3,30),(1,4,20),(2,5,25),(3,4,30),(3,5,35),(4,6,30),
-            (5,7,40),(5,8,40),(6,8,35),(6,9,30),(7,10,20),(8,10,20),(9,10,20)
-        ]
-        self.original_edge_tuples = set([(u,v) for u,v,c in self.edges_with_capacity_list])
-
-        self.capacities = collections.defaultdict(int) # Stores (u,v) -> capacity
-        self.flow = collections.defaultdict(int)       # Stores (u,v) -> flow
-        self.adj = collections.defaultdict(list)       # Adjacency list for graph traversal
-
-        for u,v,cap in self.edges_with_capacity_list:
-            self.capacities[(u,v)] = cap
-            if v not in self.adj[u]: self.adj[u].append(v)
-            if u not in self.adj[v]: self.adj[v].append(u) # For finding all neighbors (BFS/DFS structure)
-
-        # Define layout for nodes
-        self.graph_layout = {
-            1: [-4,0,0], 2:[-2,1,0], 3:[-2,0,0], 4:[-2,-1,0], 5:[-0.5,0.75,0], 6:[-0.5,-0.75,0],
-            7: [1,1,0], 8:[1,0,0], 9:[1,-1,0], 10:[2.5,0,0]
-        }
-
-        # Dictionaries to store mobjects for nodes, edges, and labels
-        self.node_mobjects = {}; self.edge_mobjects = {};
-        self.edge_capacity_text_mobjects = {}; self.edge_flow_val_text_mobjects = {};
-        self.edge_slash_text_mobjects = {} # For "flow/capacity" display
-        self.edge_label_groups = {} # Groups for (flow, slash, capacity) or (residual capacity)
-        self.base_label_visual_attrs = {} # Stores original opacity for labels
-        self.edge_residual_capacity_mobjects = {} # For non-original edges' capacity labels
-
-        self.desired_large_scale = 1.6 # Scale factor for the main graph display
-
-        # Create and animate node mobjects (dots and labels)
-        nodes_vgroup = VGroup()
-        for v_id in self.vertices_data:
-            dot = Dot(point=self.graph_layout[v_id], radius=NODE_RADIUS, color=DEFAULT_NODE_COLOR, z_index=10, stroke_color=BLACK, stroke_width=NODE_STROKE_WIDTH)
-            label_str = "s" if v_id == self.source_node else "t" if v_id == self.sink_node else str(v_id)
-            label = Text(str(v_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD).move_to(dot.get_center()).set_z_index(11)
-            self.node_mobjects[v_id] = VGroup(dot,label); nodes_vgroup.add(self.node_mobjects[v_id])
-        self.play(LaggedStart(*[GrowFromCenter(self.node_mobjects[vid]) for vid in self.vertices_data], lag_ratio=0.05), run_time=1.5)
-        self.wait(0.5)
-
-        # Create and animate edge mobjects (arrows)
-        edges_vgroup = VGroup()
-        edge_grow_anims = []
-        for u, v, cap in self.edges_with_capacity_list:
-            arrow = self._create_edge_arrow(
-                self.node_mobjects[u],
-                self.node_mobjects[v],
-                tip_length=ARROW_TIP_LENGTH,
-                color=DEFAULT_EDGE_COLOR,
-                stroke_width=EDGE_STROKE_WIDTH
-            )
-            self.edge_mobjects[(u, v)] = arrow
-            edges_vgroup.add(arrow)
-            edge_grow_anims.append(GrowArrow(arrow))
-
-        self.play(LaggedStart(*edge_grow_anims, lag_ratio=0.05), run_time=1.5)
-        self.wait(0.5)
-
-        # Create and animate edge labels (flow/capacity)
-        all_edge_labels_vgroup = VGroup()
-        capacities_to_animate_write = []
-        flow_slashes_to_animate_write = []
-
-        for u, v, cap in self.edges_with_capacity_list: # Original edges
-            arrow = self.edge_mobjects[(u,v)]
-            flow_val_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
-            slash_mobj = Text("/", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
-            cap_text_mobj = Text(str(cap), font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
-
-            self.edge_flow_val_text_mobjects[(u,v)] = flow_val_mobj
-            self.edge_slash_text_mobjects[(u,v)] = slash_mobj
-            self.edge_capacity_text_mobjects[(u,v)] = cap_text_mobj
-            self.base_label_visual_attrs[(u,v)] = {"opacity": 1.0} # Original labels are fully opaque
-
-            label_group = VGroup(flow_val_mobj, slash_mobj, cap_text_mobj).arrange(RIGHT, buff=BUFF_VERY_SMALL)
-            label_group.move_to(arrow.get_center()).rotate(arrow.get_angle())
-            offset_vector = rotate_vector(arrow.get_unit_vector(), PI/2) * 0.15 # Offset label from edge
-            label_group.shift(offset_vector).set_z_index(6)
-            self.edge_label_groups[(u,v)] = label_group
-            all_edge_labels_vgroup.add(label_group)
-            capacities_to_animate_write.append(cap_text_mobj)
-            flow_slashes_to_animate_write.append(VGroup(flow_val_mobj, slash_mobj))
-
-        if capacities_to_animate_write: self.play(LaggedStart(*[Write(c) for c in capacities_to_animate_write], lag_ratio=0.05), run_time=1.2); self.wait(0.5)
-        if flow_slashes_to_animate_write: self.play(LaggedStart(*[Write(fs_group) for fs_group in flow_slashes_to_animate_write], lag_ratio=0.05), run_time=1.2); self.wait(0.5)
-
-        # Group all network elements and scale/position them
-        self.network_display_group = VGroup(nodes_vgroup, edges_vgroup, all_edge_labels_vgroup)
-        temp_scaled_network_for_height = self.network_display_group.copy().scale(self.desired_large_scale)
-        network_target_y = (-config.frame_height / 2) + (temp_scaled_network_for_height.height / 2) + BUFF_XLARGE
-        target_position = np.array([0, network_target_y, 0])
-
-        # Store base visual attributes for edges (color, width, opacity) for restoration
-        self.base_edge_visual_attrs = {}
-        for edge_key, edge_mo in self.edge_mobjects.items():
-            self.base_edge_visual_attrs[edge_key] = {
-                "color": edge_mo.get_color(),
-                "stroke_width": edge_mo.get_stroke_width(),
-                "opacity": edge_mo.get_stroke_opacity()
-            }
-            if edge_key not in self.base_label_visual_attrs:
-                if edge_key in self.original_edge_tuples:
-                    self.base_label_visual_attrs[edge_key] = {"opacity": 1.0}
-                else:
-                    self.base_label_visual_attrs[edge_key] = {"opacity": 0.0}
-
-        self.play(self.network_display_group.animate.scale(self.desired_large_scale).move_to(target_position))
-        self.wait(0.5)
-
-        # Position the sink_action_text_mobj (for "augment", "retreat" messages)
-        if hasattr(self, 'node_mobjects') and hasattr(self, 'source_node') and \
-           self.source_node in self.node_mobjects and self.node_mobjects.get(self.source_node):
-            source_node_dot = self.node_mobjects[self.source_node][0]
-            self.sink_action_text_mobj.next_to(source_node_dot, UP, buff=BUFF_SMALL)
-        else: # Fallback position
-            self.sink_action_text_mobj.to_corner(UL, buff=BUFF_MED)
-
-        # Determine scaled height for flow text labels for consistency
-        sample_text_mobj = None
-        for key_orig_edge in self.original_edge_tuples:
-            if key_orig_edge in self.edge_flow_val_text_mobjects and self.edge_flow_val_text_mobjects[key_orig_edge] is not None:
-                sample_text_mobj = self.edge_flow_val_text_mobjects[key_orig_edge]
-                break
-        if sample_text_mobj:
-            self.scaled_flow_text_height = sample_text_mobj.height
-        else:
-            dummy_text_unscaled = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE)
-            self.scaled_flow_text_height = dummy_text_unscaled.scale(self.desired_large_scale).height
-
-
-        # Store base visual attributes for nodes
-        self.base_node_visual_attrs = {}
-        for v_id, node_group in self.node_mobjects.items():
-            dot, label = node_group
-            self.base_node_visual_attrs[v_id] = {
-                "width": dot.width,
-                "fill_color": dot.get_fill_color(),
-                "stroke_color": dot.get_stroke_color(),
-                "stroke_width": dot.get_stroke_width(),
-                "opacity": dot.get_fill_opacity(),
-                "label_color": label.get_color()
-            }
-
-        # Highlight source and sink nodes briefly
-        source_node_dot = self.node_mobjects[self.source_node][0]
-        sink_node_dot = self.node_mobjects[self.sink_node][0]
-        temp_source_ring = Circle(radius=source_node_dot.width / 2 + RING_RADIUS_OFFSET, color=RING_COLOR, stroke_width=RING_STROKE_WIDTH).move_to(source_node_dot.get_center()).set_z_index(RING_Z_INDEX)
-        temp_sink_ring = Circle(radius=sink_node_dot.width / 2 + RING_RADIUS_OFFSET, color=RING_COLOR, stroke_width=RING_STROKE_WIDTH).move_to(sink_node_dot.get_center()).set_z_index(RING_Z_INDEX)
-        self.play(Create(temp_source_ring), Create(temp_sink_ring), run_time=0.4)
-        self.play(Indicate(temp_source_ring, color=WHITE, scale_factor=1.15, rate_func=there_and_back_with_pause, run_time=0.7),
-                  Indicate(temp_sink_ring, color=WHITE, scale_factor=1.15, rate_func=there_and_back_with_pause, run_time=0.7))
-        self.play(FadeOut(temp_source_ring), FadeOut(temp_sink_ring), run_time=0.4)
-
-        # Change labels of source and sink to "s" and "t"
-        source_label_original = self.node_mobjects[self.source_node][1]
-        sink_label_original = self.node_mobjects[self.sink_node][1]
-        new_s_label_mobj = Text("s", font_size=NODE_LABEL_FONT_SIZE, weight=BOLD, color=self.base_node_visual_attrs[self.source_node]["label_color"]).move_to(source_label_original.get_center()).set_z_index(source_label_original.z_index)
-        new_t_label_mobj = Text("t", font_size=NODE_LABEL_FONT_SIZE, weight=BOLD, color=self.base_node_visual_attrs[self.sink_node]["label_color"]).move_to(sink_label_original.get_center()).set_z_index(sink_label_original.z_index)
-        self.play(Transform(source_label_original, new_s_label_mobj), Transform(sink_label_original, new_t_label_mobj), run_time=0.5)
-        self.node_mobjects[self.source_node][1] = new_s_label_mobj
-        self.node_mobjects[self.sink_node][1] = new_t_label_mobj
-        self.wait(0.5)
-
-        # --- Start Dinitz Algorithm Phases ---
-        self.update_section_title("2. Running Dinitz's Algorithm", play_anim=True)
+        # Set up the bipartite graph structure
+        self.setup_bipartite_graph()
+        
+        # Create the initial undirected bipartite graph
+        self.create_initial_bipartite_graph()
+        
+        # Transform the bipartite graph into a flow network
+        self.transform_to_flow_network()
+        
+        # Update main title to reflect we're using Dinitz for bipartite matching
+        new_title = Text("Bipartite Matching using Dinitz's Algorithm", font_size=MAIN_TITLE_FONT_SIZE)
+        new_title.to_edge(UP, buff=BUFF_LARGE).set_z_index(10)
+        self.play(Transform(self.main_title, new_title))
+        self.wait(1.0)
+        
+        # Begin Dinitz's Algorithm
+        self.update_section_title("3. Running Dinitz's Algorithm", play_anim=True)
         self.wait(1.0)
 
         while True: # Main loop for Dinitz phases
@@ -929,16 +785,19 @@ class DinitzAlgorithmVisualizer(Scene):
             for v_id, node_group in self.node_mobjects.items():
                 dot, lbl = node_group
                 node_attrs = self.base_node_visual_attrs[v_id]
-                restore_anims.append(dot.animate.set_width(node_attrs["width"]).set_fill(node_attrs["fill_color"], opacity=node_attrs["opacity"]).set_stroke(color=node_attrs["stroke_color"], width=node_attrs["stroke_width"]))
-                if v_id != self.source_node and v_id != self.sink_node:
-                    restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
-                elif v_id == self.source_node or v_id == self.sink_node:
-                    restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
+                
+                # For SVG objects (students and books), handle differently than circles
+                if v_id not in [self.source_node, self.sink_node]:
+                    restore_anims.append(dot.animate.set_color(node_attrs["fill_color"]).set_opacity(node_attrs["opacity"]))
+                else:
+                    restore_anims.append(dot.animate.set_width(node_attrs["width"]).set_fill(node_attrs["fill_color"], opacity=node_attrs["opacity"]).set_stroke(color=node_attrs["stroke_color"], width=node_attrs["stroke_width"]))
+                
+                restore_anims.append(lbl.animate.set_color(node_attrs["label_color"]))
 
             for edge_key, edge_mo in self.edge_mobjects.items():
                 edge_attrs = self.base_edge_visual_attrs[edge_key]
                 opacity = edge_attrs["opacity"]
-                # FIX: Use set_color and set_opacity for restoration
+                # Use set_color and set_opacity for restoration
                 restore_anims.append(edge_mo.animate.set_color(edge_attrs["color"]).set_opacity(opacity).set_stroke(width=edge_attrs["stroke_width"]))
                 
                 label_grp = self.edge_label_groups.get(edge_key)
@@ -985,12 +844,18 @@ class DinitzAlgorithmVisualizer(Scene):
 
                             lvl_color_v = LEVEL_COLORS[next_level_idx % len(LEVEL_COLORS)]
                             n_v_dot, n_v_lbl = self.node_mobjects[v_n_bfs]
-                            bfs_anims_this_step.extend([
-                                n_v_dot.animate.set_fill(lvl_color_v).set_width(self.base_node_visual_attrs[v_n_bfs]["width"] * 1.1),
-                                n_v_lbl.animate.set_color(BLACK if sum(color_to_rgb(lvl_color_v)) > 1.5 else WHITE)
-                            ])
+                            
+                            # For SVG objects vs. circle objects
+                            if v_n_bfs not in [self.source_node, self.sink_node]:
+                                bfs_anims_this_step.append(n_v_dot.animate.set_color(lvl_color_v))
+                            else:
+                                bfs_anims_this_step.append(n_v_dot.animate.set_fill(lvl_color_v).set_width(self.base_node_visual_attrs[v_n_bfs]["width"] * 1.1))
+                                
+                            text_color = BLACK if sum(color_to_rgb(lvl_color_v)) > 1.5 else WHITE
+                            bfs_anims_this_step.append(n_v_lbl.animate.set_color(text_color))
+                            
                             edge_color_u_for_lg = LEVEL_COLORS[self.levels[u_bfs] % len(LEVEL_COLORS)]
-                            # FIX: Use set_opacity to ensure full edge is visible
+                            # Use set_opacity to ensure full edge is visible
                             bfs_anims_this_step.append(edge_mo_bfs.animate.set_color(edge_color_u_for_lg).set_opacity(1.0).set_stroke(width=LEVEL_GRAPH_EDGE_HIGHLIGHT_WIDTH))
 
                             if edge_key_bfs not in self.original_edge_tuples:
@@ -1034,7 +899,7 @@ class DinitzAlgorithmVisualizer(Scene):
                 self.wait(3.0)
                 self.update_max_flow_display(play_anim=True)
                 self.update_phase_text(f"Algorithm Complete. Max Flow: {self.max_flow_value:.1f}", color=TEAL_A, play_anim=True)
-                self.update_status_text(f"Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+                self.update_status_text(f"Final Max Flow: {self.max_flow_value:.1f} = Maximum Matching: {int(self.max_flow_value)}", color=GREEN_A, play_anim=True)
                 self._update_sink_action_text("nothing", animate=False)
                 self.wait(4.5)
                 break
@@ -1071,7 +936,7 @@ class DinitzAlgorithmVisualizer(Scene):
                         target_opacity = DIMMED_OPACITY
                         target_width = base_attrs.get("stroke_width", EDGE_STROKE_WIDTH)
                         
-                        # FIX: Use set_color and set_opacity for dimming non-LG edges
+                        # Use set_color and set_opacity for dimming non-LG edges
                         lg_iso_anims.append(edge_mo_lg.animate.set_color(target_color).set_opacity(target_opacity).set_stroke(width=target_width))
 
                         if label_grp_lg and label_grp_lg.submobjects:
@@ -1094,69 +959,404 @@ class DinitzAlgorithmVisualizer(Scene):
                     self.wait(3.0)
 
         # Algorithm conclusion
-        self.update_section_title("3. Dinitz Algorithm Summary", play_anim=True)
+        self.update_section_title("4. Bipartite Matching Results", play_anim=True)
         self.wait(1.0)
-        if self.levels.get(self.sink_node, -1) == -1 and self.max_flow_value == 0 :
-            self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Max Flow: {self.max_flow_value:.1f}", color=RED_A, play_anim=True)
-        elif self.levels.get(self.sink_node, -1) == -1 :
-            self.update_status_text(f"Algorithm Concluded. Sink Unreachable in last BFS. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
-        else:
-            self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+        
+        # Explain the meaning of the max flow in bipartite matching
+        matching_size = int(self.max_flow_value)
+        self.update_status_text(f"Maximum Bipartite Matching Size: {matching_size} pairs", color=GREEN_A, play_anim=True)
+        self.wait(2.0)
+        
+        # Highlight the matched edges (those with flow = 1 from student to book)
+        matched_edges = []
+        for u in self.student_nodes:
+            for v in self.book_nodes:
+                if (u, v) in self.flow and self.flow[(u, v)] == 1:
+                    matched_edges.append((u, v))
+        
+        self.update_status_text(f"Highlighting {len(matched_edges)} matched pairs:", color=YELLOW_A, play_anim=True)
+        self.wait(1.0)
+        
+        # Create a list of matched pairs as text
+        matched_pairs_text = ""
+        for u, v in matched_edges:
+            matched_pairs_text += f"Student {u} → Book {v}\n"
+        
+        self.update_status_text(matched_pairs_text.strip(), color=GREEN_B, play_anim=True)
+        
+        # Highlight matched edges
+        highlight_anims = []
+        for u, v in matched_edges:
+            if (u, v) in self.edge_mobjects:
+                edge_mo = self.edge_mobjects[(u, v)]
+                highlight_anims.append(edge_mo.animate.set_color(GREEN_B).set_stroke(width=EDGE_STROKE_WIDTH*1.5))
+        
+        if highlight_anims:
+            self.play(AnimationGroup(*highlight_anims))
+        
         self.wait(5.0)
 
-        # --- Final Emphasis Flash Animation ---
-        if hasattr(self, 'node_mobjects') and self.node_mobjects and \
-           hasattr(self, 'source_node') and hasattr(self, 'sink_node') and \
-           self.source_node in self.node_mobjects and self.sink_node in self.node_mobjects:
+    def import_svg(self, file_path, width=1.0):
+        """Import SVG file and convert to Manim SVGMobject."""
+        if not os.path.exists(file_path):
+            print(f"Warning: SVG file not found: {file_path}")
+            # Return a default circle as fallback
+            return Circle(radius=width/2, color=WHITE, fill_opacity=1)
+        
+        svg_obj = SVGMobject(file_path)
+        # Scale to desired width
+        svg_obj.scale_to_fit_width(width)
+        return svg_obj
 
-            source_dot = self.node_mobjects[self.source_node][0]
-            sink_dot = self.node_mobjects[self.sink_node][0]
-
-            other_node_dots = []
-            for node_id in self.vertices_data: # Assuming self.vertices_data holds all relevant node IDs
-                if node_id in self.node_mobjects: # Ensure mobject exists for this ID
-                    if node_id != self.source_node and node_id != self.sink_node:
-                        other_node_dots.append(self.node_mobjects[node_id][0])
+    def setup_bipartite_graph(self):
+        """Set up the bipartite graph with students on left, books on right."""
+        # Define the bipartite graph parameters
+        self.num_students = 4
+        self.num_books = 3
+        
+        # Create nodes for students, books, source, and sink
+        self.vertices_data = []
+        self.student_nodes = list(range(1, self.num_students + 1))
+        self.book_nodes = list(range(self.num_students + 1, self.num_students + self.num_books + 1))
+        
+        # Initialize network variables
+        self.original_edge_tuples = set()
+        self.capacities = collections.defaultdict(int)
+        self.flow = collections.defaultdict(int)
+        self.adj = collections.defaultdict(list)
+        
+        # Define initial bipartite edges (student to book connections)
+        # For demonstration: each student connects to some books
+        self.bipartite_edges = [
+            (1, 5), (1, 6),  # Student 1 likes books 5 and 6
+            (2, 5),          # Student 2 likes book 5
+            (3, 6), (3, 7),  # Student 3 likes books 6 and 7
+            (4, 7)           # Student 4 likes book 7
+        ]
+        
+        # Create layout for bipartite graph
+        self.graph_layout = {}
+        
+        # Position students on the left
+        for i, student_id in enumerate(self.student_nodes):
+            self.graph_layout[student_id] = [-STUDENT_BOOK_SPACING/2, (self.num_students-1)*LINE_SPACING/2 - i*LINE_SPACING, 0]
+            self.vertices_data.append(student_id)
             
-            anims_for_final_emphasis = []
-
-            # Flashes for other nodes
-            # These are added first to the list, but all animations in a single self.play() run concurrently
-            # unless explicitly sequenced with LaggedStart or AnimationGroup with delays.
-            anims_for_final_emphasis.extend(
-                [
-                    Flash(dot, color=BLUE_A, flash_radius=NODE_RADIUS * 2.0) # Using relative flash_radius
-                    for dot in other_node_dots
-                ]
-            )
+        # Position books on the right
+        for i, book_id in enumerate(self.book_nodes):
+            self.graph_layout[book_id] = [STUDENT_BOOK_SPACING/2, (self.num_books-1)*LINE_SPACING/2 - i*LINE_SPACING, 0]
+            self.vertices_data.append(book_id)
+    
+    def create_initial_bipartite_graph(self):
+        """Create and animate the initial undirected bipartite graph."""
+        self.update_section_title("1. Bipartite Graph: Students and Books", play_anim=True)
+        self.wait(1.0)
+        
+        # Initialize containers for mobjects
+        self.node_mobjects = {}
+        self.edge_mobjects = {}
+        self.edge_capacity_text_mobjects = {}
+        self.edge_flow_val_text_mobjects = {}
+        self.edge_slash_text_mobjects = {}
+        self.edge_label_groups = {}
+        self.base_label_visual_attrs = {}
+        self.edge_residual_capacity_mobjects = {}
+        
+        # Create student nodes
+        student_vgroup = VGroup()
+        for i, student_id in enumerate(self.student_nodes):
+            # Determine which student SVG to use (odd/even)
+            svg_file = "student_1.svg" if student_id % 2 == 1 else "student_0.svg"
+            svg_obj = self.import_svg(svg_file, width=NODE_RADIUS*2.2)
+            svg_obj.move_to(self.graph_layout[student_id])
+            svg_obj.set_color(STUDENT_COLOR)
+            svg_obj.set_z_index(10)
             
-            # Flashes for source and sink nodes (more prominent radius and distinct colors)
-            # Added to the list; will play concurrently with the others.
-            # Their prominence comes from visual distinction.
-            anims_for_final_emphasis.append(
-                Flash(source_dot, color=GOLD_D, flash_radius=NODE_RADIUS * 3.0) 
-            )
-            anims_for_final_emphasis.append(
-                Flash(sink_dot, color=RED_C, flash_radius=NODE_RADIUS * 3.0)
-            )
+            # Create the label
+            label = Text(str(student_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD)
+            label.move_to(svg_obj.get_center() + DOWN * (svg_obj.height/2 + 0.2))
+            label.set_z_index(11)
             
-            if anims_for_final_emphasis:
-                self.play(
-                    *anims_for_final_emphasis,
-                    run_time=2.0 
-                )
-        # --- End of Final Emphasis Flash Animation ---
+            self.node_mobjects[student_id] = VGroup(svg_obj, label)
+            student_vgroup.add(self.node_mobjects[student_id])
+            
+        # Create book nodes
+        book_vgroup = VGroup()
+        for book_id in self.book_nodes:
+            svg_obj = self.import_svg("book.svg", width=NODE_RADIUS*2.2)
+            svg_obj.move_to(self.graph_layout[book_id])
+            svg_obj.set_color(BOOK_COLOR)
+            svg_obj.set_z_index(10)
+            
+            label = Text(str(book_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD)
+            label.move_to(svg_obj.get_center() + DOWN * (svg_obj.height/2 + 0.2))
+            label.set_z_index(11)
+            
+            self.node_mobjects[book_id] = VGroup(svg_obj, label)
+            book_vgroup.add(self.node_mobjects[book_id])
+        
+        # Animate nodes appearing
+        self.play(
+            LaggedStart(*[GrowFromCenter(self.node_mobjects[v_id]) for v_id in self.student_nodes], lag_ratio=0.1),
+            run_time=1.5
+        )
+        self.wait(0.5)
+        
+        self.play(
+            LaggedStart(*[GrowFromCenter(self.node_mobjects[v_id]) for v_id in self.book_nodes], lag_ratio=0.1),
+            run_time=1.5
+        )
+        self.wait(0.5)
+        
+        # Create undirected edges for bipartite graph
+        edges_vgroup = VGroup()
+        edge_create_anims = []
+        
+        for u, v in self.bipartite_edges:
+            # For undirected edges, use a simple line
+            start_point = self.node_mobjects[u][0].get_center()
+            end_point = self.node_mobjects[v][0].get_center()
+            
+            line = Line(
+                start_point, 
+                end_point, 
+                stroke_width=EDGE_STROKE_WIDTH,
+                color=DEFAULT_EDGE_COLOR
+            )
+            line.set_z_index(5)
+            
+            self.edge_mobjects[(u, v)] = line
+            edges_vgroup.add(line)
+            edge_create_anims.append(Create(line))
+        
+        self.play(LaggedStart(*edge_create_anims, lag_ratio=0.05), run_time=1.5)
+        self.wait(1.0)
+        
+        # Group all network elements
+        self.network_display_group = VGroup(student_vgroup, book_vgroup, edges_vgroup)
+        
+        # Scale and position the network
+        self.desired_large_scale = 1.6
+        target_position = np.array([0, -1.5, 0])
+        self.play(self.network_display_group.animate.scale(self.desired_large_scale).move_to(target_position))
+        self.wait(1.0)
+        
+        # Store base visual attributes for nodes
+        self.base_node_visual_attrs = {}
+        for v_id, node_group in self.node_mobjects.items():
+            svg_obj, label = node_group
+            self.base_node_visual_attrs[v_id] = {
+                "width": svg_obj.width,
+                "fill_color": svg_obj.get_color(),
+                "opacity": svg_obj.get_opacity(),
+                "label_color": label.get_color()
+            }
+        
+        # Store base visual attributes for edges
+        self.base_edge_visual_attrs = {}
+        for edge_key, edge_mo in self.edge_mobjects.items():
+            self.base_edge_visual_attrs[edge_key] = {
+                "color": edge_mo.get_color(),
+                "stroke_width": edge_mo.get_stroke_width(),
+                "opacity": edge_mo.get_stroke_opacity()
+            }
+            
+        self.update_status_text("Initial bipartite graph created: students connected to books they like.", play_anim=True)
+        self.wait(2.0)
 
-        # Clean up scene, leaving only titles and final status
-        mobjects_that_should_remain_on_screen = Group(self.main_title, self.info_texts_group)
-        mobjects_that_should_remain_on_screen.remove(*[m for m in mobjects_that_should_remain_on_screen if not isinstance(m, Mobject)])
-        final_mobjects_to_fade_out = Group()
-        all_descendants_of_kept_mobjects = set()
-        for mobj_to_keep in mobjects_that_should_remain_on_screen:
-            all_descendants_of_kept_mobjects.update(mobj_to_keep.get_family())
-        for mobj_on_scene in list(self.mobjects):
-            if mobj_on_scene not in all_descendants_of_kept_mobjects:
-                final_mobjects_to_fade_out.add(mobj_on_scene)
-        if final_mobjects_to_fade_out.submobjects:
-            self.play(FadeOut(final_mobjects_to_fade_out, run_time=1.0))
-        self.wait(6)
+    def transform_to_flow_network(self):
+        """Transform the bipartite graph into a flow network with source and sink nodes."""
+        self.update_section_title("2. Converting to Flow Network", play_anim=True)
+        
+        # Add source and sink nodes
+        self.source_node = 0  # Source node ID
+        self.sink_node = self.num_students + self.num_books + 1  # Sink node ID
+        
+        # Update vertices list
+        self.vertices_data.append(self.source_node)
+        self.vertices_data.append(self.sink_node)
+        
+        # Position source and sink nodes
+        source_pos = [-STUDENT_BOOK_SPACING - 1, 0, 0]  # Left of students
+        sink_pos = [STUDENT_BOOK_SPACING + 1, 0, 0]     # Right of books
+        
+        self.graph_layout[self.source_node] = source_pos
+        self.graph_layout[self.sink_node] = sink_pos
+        
+        # Create source and sink node mobjects
+        source_circle = Circle(radius=NODE_RADIUS*1.2, color=SOURCE_COLOR, fill_opacity=0.8, stroke_width=NODE_STROKE_WIDTH)
+        source_circle.move_to(source_pos)
+        source_circle.set_z_index(10)
+        
+        source_label = Text("s", font_size=NODE_LABEL_FONT_SIZE, weight=BOLD)
+        source_label.move_to(source_circle.get_center())
+        source_label.set_z_index(11)
+        
+        self.node_mobjects[self.source_node] = VGroup(source_circle, source_label)
+        
+        sink_circle = Circle(radius=NODE_RADIUS*1.2, color=SINK_COLOR, fill_opacity=0.8, stroke_width=NODE_STROKE_WIDTH)
+        sink_circle.move_to(sink_pos)
+        sink_circle.set_z_index(10)
+        
+        sink_label = Text("t", font_size=NODE_LABEL_FONT_SIZE, weight=BOLD)
+        sink_label.move_to(sink_circle.get_center())
+        sink_label.set_z_index(11)
+        
+        self.node_mobjects[self.sink_node] = VGroup(sink_circle, sink_label)
+        
+        # Add source and sink nodes to display group
+        self.network_display_group.add(self.node_mobjects[self.source_node], self.node_mobjects[self.sink_node])
+        
+        # Animate source and sink nodes appearing
+        self.play(
+            GrowFromCenter(self.node_mobjects[self.source_node]),
+            GrowFromCenter(self.node_mobjects[self.sink_node]),
+            run_time=1.5
+        )
+        self.wait(1.0)
+        
+        self.update_status_text("Adding source (s) and sink (t) nodes to create a flow network.", play_anim=True)
+        self.wait(1.5)
+        
+        # Store base visual attributes for source and sink nodes
+        for v_id in [self.source_node, self.sink_node]:
+            circle, label = self.node_mobjects[v_id]
+            self.base_node_visual_attrs[v_id] = {
+                "width": circle.width,
+                "fill_color": circle.get_color(),
+                "stroke_color": circle.get_stroke_color(),
+                "stroke_width": circle.get_stroke_width(),
+                "opacity": circle.get_fill_opacity(),
+                "label_color": label.get_color()
+            }
+        
+        # Convert undirected edges to directed edges with capacity 1
+        self.update_status_text("Converting undirected edges to directed edges with capacity 1.", play_anim=True)
+        
+        # First, remove all undirected edges
+        undirected_edges = list(self.edge_mobjects.keys())
+        remove_anims = []
+        
+        for edge_key in undirected_edges:
+            edge_mo = self.edge_mobjects[edge_key]
+            remove_anims.append(FadeOut(edge_mo))
+        
+        if remove_anims:
+            self.play(*remove_anims, run_time=1.0)
+        
+        # Clear the edge dictionaries
+        self.edge_mobjects = {}
+        self.original_edge_tuples = set()
+        
+        # Create directed edges from source to students, students to books, and books to sink
+        # Each with capacity 1 and flow 0
+        new_edges_with_capacity = []
+        
+        # Source to students
+        for student_id in self.student_nodes:
+            new_edges_with_capacity.append((self.source_node, student_id, 1))
+        
+        # Students to books (the original bipartite edges)
+        for u, v in self.bipartite_edges:
+            new_edges_with_capacity.append((u, v, 1))
+        
+        # Books to sink
+        for book_id in self.book_nodes:
+            new_edges_with_capacity.append((book_id, self.sink_node, 1))
+        
+        # Update the original edge tuples and capacities
+        for u, v, cap in new_edges_with_capacity:
+            self.original_edge_tuples.add((u, v))
+            self.capacities[(u, v)] = cap
+            if v not in self.adj[u]: self.adj[u].append(v)
+            if u not in self.adj[v]: self.adj[v].append(u)  # For traversal purposes
+        
+        # Create and animate the directed edges
+        edges_vgroup = VGroup()
+        edge_create_anims = []
+        
+        for u, v, cap in new_edges_with_capacity:
+            arrow = self._create_edge_arrow(
+                self.node_mobjects[u],
+                self.node_mobjects[v],
+                tip_length=ARROW_TIP_LENGTH,
+                color=DEFAULT_EDGE_COLOR,
+                stroke_width=EDGE_STROKE_WIDTH
+            )
+            self.edge_mobjects[(u, v)] = arrow
+            edges_vgroup.add(arrow)
+            edge_create_anims.append(GrowArrow(arrow))
+        
+        self.play(LaggedStart(*edge_create_anims, lag_ratio=0.05), run_time=2.0)
+        self.wait(1.0)
+        
+        # Create and animate the capacity labels (flow/capacity)
+        self.update_status_text("Adding capacity labels (flow/capacity).", play_anim=True)
+        
+        all_edge_labels_vgroup = VGroup()
+        capacity_labels_to_animate = []
+        flow_slashes_to_animate = []
+        
+        for u, v, cap in new_edges_with_capacity:
+            arrow = self.edge_mobjects[(u, v)]
+            flow_val_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            slash_mobj = Text("/", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            cap_text_mobj = Text(str(cap), font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            
+            self.edge_flow_val_text_mobjects[(u, v)] = flow_val_mobj
+            self.edge_slash_text_mobjects[(u, v)] = slash_mobj
+            self.edge_capacity_text_mobjects[(u, v)] = cap_text_mobj
+            self.base_label_visual_attrs[(u, v)] = {"opacity": 1.0}
+            
+            label_group = VGroup(flow_val_mobj, slash_mobj, cap_text_mobj).arrange(RIGHT, buff=BUFF_VERY_SMALL)
+            label_group.move_to(arrow.get_center()).rotate(arrow.get_angle())
+            offset_vector = rotate_vector(arrow.get_unit_vector(), PI/2) * 0.15
+            label_group.shift(offset_vector).set_z_index(6)
+            
+            self.edge_label_groups[(u, v)] = label_group
+            all_edge_labels_vgroup.add(label_group)
+            
+            capacity_labels_to_animate.append(cap_text_mobj)
+            flow_slashes_to_animate.append(VGroup(flow_val_mobj, slash_mobj))
+        
+        if capacity_labels_to_animate:
+            self.play(LaggedStart(*[Write(c) for c in capacity_labels_to_animate], lag_ratio=0.05), run_time=1.2)
+        
+        if flow_slashes_to_animate:
+            self.play(LaggedStart(*[Write(fs_group) for fs_group in flow_slashes_to_animate], lag_ratio=0.05), run_time=1.2)
+        
+        self.wait(1.0)
+        
+        # Update the network display group with the new edges and labels
+        self.network_display_group.add(edges_vgroup, all_edge_labels_vgroup)
+        
+        # Store base visual attributes for new edges
+        for edge_key, edge_mo in self.edge_mobjects.items():
+            self.base_edge_visual_attrs[edge_key] = {
+                "color": edge_mo.get_color(),
+                "stroke_width": edge_mo.get_stroke_width(),
+                "opacity": edge_mo.get_stroke_opacity()
+            }
+        
+        # Position the sink_action_text_mobj
+        source_dot = self.node_mobjects[self.source_node][0]
+        self.sink_action_text_mobj.next_to(source_dot, UP, buff=BUFF_SMALL)
+        
+        # Scale and adjust the entire network
+        self.play(self.network_display_group.animate.scale(0.8).move_to(np.array([0, -2.0, 0])))
+        
+        # Determine scaled height for flow text labels
+        sample_text_mobj = None
+        for key_orig_edge in self.original_edge_tuples:
+            if key_orig_edge in self.edge_flow_val_text_mobjects and self.edge_flow_val_text_mobjects[key_orig_edge] is not None:
+                sample_text_mobj = self.edge_flow_val_text_mobjects[key_orig_edge]
+                break
+        
+        if sample_text_mobj:
+            self.scaled_flow_text_height = sample_text_mobj.height
+        else:
+            dummy_text_unscaled = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE)
+            self.scaled_flow_text_height = dummy_text_unscaled.scale(self.desired_large_scale).height
+        
+        self.update_status_text("Flow network created. Ready to run Dinitz's algorithm.", play_anim=True)
+        self.wait(2.0)
