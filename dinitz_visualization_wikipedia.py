@@ -136,7 +136,7 @@ class DinitzAlgorithmVisualizer(Scene):
         ).arrange(DOWN, center=True, buff=BUFF_MED).next_to(self.main_title, DOWN, buff=BUFF_MED)
         self.add(self.info_texts_group)
 
-        self.level_display_vgroup = VGroup().set_z_index(10).to_corner(UR, buff=BUFF_LARGE)
+        self.level_display_vgroup = VGroup().set_z_index(10).to_corner(UR, buff=BUFF_XLARGE)
         self.add(self.level_display_vgroup)
 
         self.sink_action_text_mobj = Text("", font_size=STATUS_TEXT_FONT_SIZE, weight=BOLD, color=YELLOW).set_z_index(RING_Z_INDEX + 50)
