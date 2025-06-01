@@ -1160,9 +1160,6 @@ class DinitzAlgorithmVisualizer(Scene):
                 "stroke_width": edge_mo.get_stroke_width(),
                 "opacity": edge_mo.get_stroke_opacity()
             }
-            
-        self.update_status_text("Initial bipartite graph created: students connected to books they like.", play_anim=True)
-        self.wait(2.0)
 
     def transform_to_flow_network(self):
         """Transform the bipartite graph into a flow network with source and sink nodes."""
@@ -1215,9 +1212,6 @@ class DinitzAlgorithmVisualizer(Scene):
         )
         self.wait(1.0)
         
-        self.update_status_text("Adding source (s) and sink (t) nodes to create a flow network.", play_anim=True)
-        self.wait(1.5)
-        
         # Store base visual attributes for source and sink nodes
         for v_id in [self.source_node, self.sink_node]:
             circle, label = self.node_mobjects[v_id]
@@ -1229,9 +1223,6 @@ class DinitzAlgorithmVisualizer(Scene):
                 "opacity": circle.get_fill_opacity(),
                 "label_color": label.get_color()
             }
-        
-        # Convert undirected edges to directed edges with capacity 1
-        self.update_status_text("Converting undirected edges to directed edges with capacity 1.", play_anim=True)
         
         # First, remove all undirected edges
         undirected_edges = list(self.edge_mobjects.keys())
@@ -1289,9 +1280,6 @@ class DinitzAlgorithmVisualizer(Scene):
         
         self.play(LaggedStart(*edge_create_anims, lag_ratio=0.05), run_time=2.0)
         self.wait(1.0)
-        
-        # Create and animate the capacity labels (flow/capacity)
-        self.update_status_text("Adding capacity labels (flow/capacity).", play_anim=True)
         
         all_edge_labels_vgroup = VGroup()
         capacity_labels_to_animate = []
@@ -1358,5 +1346,4 @@ class DinitzAlgorithmVisualizer(Scene):
             dummy_text_unscaled = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE)
             self.scaled_flow_text_height = dummy_text_unscaled.scale(self.desired_large_scale).height
         
-        self.update_status_text("Flow network created. Ready to run Dinitz's algorithm.", play_anim=True)
         self.wait(2.0)
