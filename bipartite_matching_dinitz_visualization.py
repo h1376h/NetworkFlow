@@ -325,10 +325,12 @@ class DinitzAlgorithmVisualizer(Scene):
         # u: current node, pushed: flow pushed so far, current_path_info_list: stores path edges.
 
         u_dot_group = self.node_mobjects[u]
-        u_dot = u_dot_group[0]
+        u_dot = u_dot_group[0]  # This is either the circle for bipartite nodes or directly the dot for source/sink
 
         # Highlight the current node being visited in DFS
-        highlight_ring = Circle(radius=u_dot.width/2 * 1.3, color=PINK, stroke_width=RING_STROKE_WIDTH * 0.7) \
+        # For bipartite nodes, we need to highlight the circle which contains the icon or label
+        highlight_radius = u_dot.width/2 * 1.3
+        highlight_ring = Circle(radius=highlight_radius, color=PINK, stroke_width=RING_STROKE_WIDTH * 0.7) \
             .move_to(u_dot.get_center()).set_z_index(u_dot.z_index + 2)
         self.dfs_traversal_highlights.add(highlight_ring)
         self.play(Create(highlight_ring), run_time=0.3)
@@ -442,7 +444,13 @@ class DinitzAlgorithmVisualizer(Scene):
         # --- DINIC'S LOGIC: "Delete" a node from the LG for this phase once it's a dead end. ---
         if u != self.source_node: # The source node is never a dead end
             self.dead_nodes_in_phase.add(u)
-            u_dot, u_lbl = self.node_mobjects[u]
+            u_circle, u_lbl = self.node_mobjects[u]
+            
+            # For bipartite nodes, u_circle might be a VGroup with [circle_bg, label]
+            if isinstance(u_circle, VGroup):
+                u_dot = u_circle[0]  # The actual circle
+            else:
+                u_dot = u_circle  # Direct circle for source/sink
 
             self.update_status_text(f"Node {u_display_name} deleted from LG for this phase.", color=ORANGE, play_anim=False)
             self.wait(1.5)
@@ -997,16 +1005,32 @@ class DinitzAlgorithmVisualizer(Scene):
         self.wait(5.0)
 
     def import_svg(self, file_path, width=1.0):
-        """Import SVG file and convert to Manim SVGMobject."""
+        """Import SVG file and convert to Manim SVGMobject, placing it inside a circle background."""
         if not os.path.exists(file_path):
             print(f"Warning: SVG file not found: {file_path}")
             # Return a default circle as fallback
             return Circle(radius=width/2, color=WHITE, fill_opacity=1)
         
+        # Create the circle background that will contain the SVG
+        circle_bg = Circle(
+            radius=NODE_RADIUS * 1.2,
+            stroke_width=NODE_STROKE_WIDTH,
+            stroke_color=WHITE,
+            fill_opacity=0.9,
+            fill_color=WHITE
+        )
+        
+        # Import the SVG
         svg_obj = SVGMobject(file_path)
-        # Scale to desired width
-        svg_obj.scale_to_fit_width(width)
-        return svg_obj
+        # Scale to fit inside the circle with some padding
+        svg_obj.scale_to_fit_width(width * 0.7)
+        svg_obj.move_to(circle_bg.get_center())
+        
+        # Group the circle and SVG together
+        node_group = VGroup(circle_bg, svg_obj)
+        node_group.set_z_index(10)
+        
+        return node_group
 
     def setup_bipartite_graph(self):
         """Set up the bipartite graph with students on left, books on right."""
@@ -1067,32 +1091,47 @@ class DinitzAlgorithmVisualizer(Scene):
         for i, student_id in enumerate(self.student_nodes):
             # Determine which student SVG to use (odd/even)
             svg_file = "student_1.svg" if student_id % 2 == 1 else "student_0.svg"
-            svg_obj = self.import_svg(svg_file, width=NODE_RADIUS*2.2)
-            svg_obj.move_to(self.graph_layout[student_id])
-            svg_obj.set_color(STUDENT_COLOR)
-            svg_obj.set_z_index(10)
+            node_group = self.import_svg(svg_file, width=NODE_RADIUS*2.2)
             
-            # Create the label
+            # The circle is the first element, the SVG is the second
+            circle_bg, svg_icon = node_group
+            
+            # Set the circle fill color to white initially
+            circle_bg.set_fill(WHITE, opacity=0.9)
+            circle_bg.set_stroke(STUDENT_COLOR, opacity=1, width=NODE_STROKE_WIDTH)
+            
+            # Move the node to its position
+            node_group.move_to(self.graph_layout[student_id])
+            
+            # Create the label (initially outside the node)
             label = Text(str(student_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD)
-            label.move_to(svg_obj.get_center() + DOWN * (svg_obj.height/2 + 0.2))
+            label.move_to(node_group.get_center() + DOWN * (node_group.height/2 + 0.2))
             label.set_z_index(11)
             
-            self.node_mobjects[student_id] = VGroup(svg_obj, label)
+            self.node_mobjects[student_id] = VGroup(node_group, label)
             student_vgroup.add(self.node_mobjects[student_id])
             
         # Create book nodes
         book_vgroup = VGroup()
         for book_id in self.book_nodes:
-            svg_obj = self.import_svg("book.svg", width=NODE_RADIUS*2.2)
-            svg_obj.move_to(self.graph_layout[book_id])
-            svg_obj.set_color(BOOK_COLOR)
-            svg_obj.set_z_index(10)
+            node_group = self.import_svg("book.svg", width=NODE_RADIUS*2.2)
             
+            # The circle is the first element, the SVG is the second
+            circle_bg, svg_icon = node_group
+            
+            # Set the circle fill color to white initially
+            circle_bg.set_fill(WHITE, opacity=0.9)
+            circle_bg.set_stroke(BOOK_COLOR, opacity=1, width=NODE_STROKE_WIDTH)
+            
+            # Move the node to its position
+            node_group.move_to(self.graph_layout[book_id])
+            
+            # Create the label (initially outside the node)
             label = Text(str(book_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD)
-            label.move_to(svg_obj.get_center() + DOWN * (svg_obj.height/2 + 0.2))
+            label.move_to(node_group.get_center() + DOWN * (node_group.height/2 + 0.2))
             label.set_z_index(11)
             
-            self.node_mobjects[book_id] = VGroup(svg_obj, label)
+            self.node_mobjects[book_id] = VGroup(node_group, label)
             book_vgroup.add(self.node_mobjects[book_id])
         
         # Animate nodes appearing
@@ -1135,20 +1174,24 @@ class DinitzAlgorithmVisualizer(Scene):
         # Group all network elements
         self.network_display_group = VGroup(student_vgroup, book_vgroup, edges_vgroup)
         
-        # Scale and position the network
-        self.desired_large_scale = 1.6
-        target_position = np.array([0, -1.5, 0])
+        # Scale and position the network with a safer scale factor to avoid leaving screen
+        self.desired_large_scale = 1.2  # Reduced from 1.6 to keep within screen
+        target_position = np.array([0, -1.0, 0])  # Adjusted position
         self.play(self.network_display_group.animate.scale(self.desired_large_scale).move_to(target_position))
         self.wait(1.0)
         
         # Store base visual attributes for nodes
         self.base_node_visual_attrs = {}
         for v_id, node_group in self.node_mobjects.items():
-            svg_obj, label = node_group
+            svg_group, label = node_group
+            # svg_group contains [circle_bg, svg_icon]
+            circle_bg = svg_group[0]
             self.base_node_visual_attrs[v_id] = {
-                "width": svg_obj.width,
-                "fill_color": svg_obj.get_color(),
-                "opacity": svg_obj.get_opacity(),
+                "width": circle_bg.width,
+                "fill_color": circle_bg.get_fill_color(),
+                "opacity": circle_bg.get_fill_opacity(),
+                "stroke_color": circle_bg.get_stroke_color(),
+                "stroke_width": circle_bg.get_stroke_width(),
                 "label_color": label.get_color()
             }
         
@@ -1234,6 +1277,34 @@ class DinitzAlgorithmVisualizer(Scene):
         
         if remove_anims:
             self.play(*remove_anims, run_time=1.0)
+        
+        # Now transform the bipartite nodes: move labels inside the circles and change colors
+        node_transform_anims = []
+        
+        for node_id in self.student_nodes + self.book_nodes:
+            node_group, old_label = self.node_mobjects[node_id]
+            circle_bg, svg_icon = node_group
+            
+            # Create new label to be placed inside the circle
+            new_label = Text(str(node_id), font_size=NODE_LABEL_FONT_SIZE, weight=BOLD, color=WHITE)
+            new_label.move_to(circle_bg.get_center())
+            new_label.set_z_index(12)
+            
+            # Determine the node color
+            node_color = STUDENT_COLOR if node_id in self.student_nodes else BOOK_COLOR
+            
+            # Animate: fade out SVG, change circle color, move label inside
+            node_transform_anims.extend([
+                FadeOut(svg_icon, run_time=0.8),
+                circle_bg.animate.set_fill(node_color, opacity=0.8),
+                ReplacementTransform(old_label, new_label, run_time=0.8)
+            ])
+            
+            # Update the node mobject with the new configuration
+            self.node_mobjects[node_id] = VGroup(circle_bg, new_label)
+        
+        self.play(*node_transform_anims, run_time=1.2)
+        self.wait(0.5)
         
         # Clear the edge dictionaries
         self.edge_mobjects = {}
@@ -1330,8 +1401,8 @@ class DinitzAlgorithmVisualizer(Scene):
         source_dot = self.node_mobjects[self.source_node][0]
         self.sink_action_text_mobj.next_to(source_dot, UP, buff=BUFF_SMALL)
         
-        # Scale and adjust the entire network
-        self.play(self.network_display_group.animate.scale(0.8).move_to(np.array([0, -2.0, 0])))
+        # Scale and adjust the entire network - using a more moderate scale factor
+        self.play(self.network_display_group.animate.scale(0.9).move_to(np.array([0, -1.8, 0])))
         
         # Determine scaled height for flow text labels
         sample_text_mobj = None
