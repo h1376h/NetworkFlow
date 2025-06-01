@@ -262,7 +262,7 @@ class DinitzUnitCapacityVisualizer(Scene):
         
         # Create path display text
         path_display = " → ".join(path_nodes)
-        path_markup_str = f"Path found: <span fgcolor='{GREEN_B.to_hex()}'>{path_display}</span>"
+        path_markup_str = f"Path found: <span fgcolor='{GREEN_B.to_hex()}'>{path_display}</span> (Flow = 1)"
         
         self._update_text_generic("calculation_details_mobj", path_markup_str, STATUS_TEXT_FONT_SIZE, NORMAL, WHITE, play_anim, is_markup=True)
 
@@ -484,6 +484,15 @@ class DinitzUnitCapacityVisualizer(Scene):
             # Display the path information
             self.display_path_info(current_path_anim_info, play_anim=True)
             self.wait(2.0)
+            
+            # Add a visual explanation of the unit capacity property
+            if path_count_this_phase == 1:
+                self._create_overlay_text(
+                    "In unit-capacity networks, every augmenting path\nincreases the flow by exactly 1 unit",
+                    font_size=28,
+                    color=BLUE_A,
+                    duration=3.5
+                )
 
             # --- DYNAMIC REVERSE EDGE CREATION ---
             pre_augment_animations = []
@@ -610,12 +619,105 @@ class DinitzUnitCapacityVisualizer(Scene):
             self.update_status_text(f"Flow augmented. Current phase flow: {total_flow_this_phase}. Searching for next path...", color=WHITE, play_anim=True)
             self.wait(2.5)
 
+            # Update flow labels on the forward edges
+            for (u, v), edge_mo in current_path_anim_info:
+                if (u, v) in self.edge_label_groups:
+                    label = self.edge_label_groups[(u, v)][0]
+                    new_label = Text("1/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=GREEN_C)
+                    new_label.move_to(label.get_center())
+                    self.play(Transform(label, new_label), run_time=0.4)
+                
+                # Update reverse edge label if it exists
+                if (v, u) in self.edge_label_groups:
+                    rev_label = self.edge_label_groups[(v, u)][0]
+                    new_rev_label = Text("0/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=GREY_C)
+                    new_rev_label.move_to(rev_label.get_center())
+                    self.play(Transform(rev_label, new_rev_label), run_time=0.4)
+            
+            # If this is the first augmenting path, show an explanation
+            if path_count_this_phase == 1:
+                self._create_overlay_text(
+                    "Once an edge carries flow = 1, it's saturated\nand can't carry any more flow",
+                    font_size=28,
+                    color=YELLOW_A,
+                    duration=3.5
+                )
+
         if self.dfs_traversal_highlights.submobjects:
             self.play(FadeOut(self.dfs_traversal_highlights), run_time=0.2)
         if self.sink_action_text_mobj.text != "":
             self._update_sink_action_text("nothing", animate=True)
 
         return total_flow_this_phase 
+
+    def _create_overlay_text(self, text_content, position=None, font_size=24, color=WHITE, duration=3.0):
+        """
+        Creates an explanatory text that appears in the center of the screen
+        to provide conceptual explanation during the visualization.
+        """
+        overlay_text = Text(text_content, font_size=font_size, color=color)
+        
+        if position is None:
+            # Default position is center screen, slightly above network
+            overlay_text.to_edge(UP, buff=2.5)
+        else:
+            overlay_text.move_to(position)
+            
+        overlay_text.set_z_index(100)  # Ensure it appears above everything
+        
+        self.play(FadeIn(overlay_text, scale=1.1), run_time=0.7)
+        self.wait(duration)
+        self.play(FadeOut(overlay_text), run_time=0.7)
+        
+    def _highlight_max_flow_cut(self):
+        """Creates a visual highlight of the min-cut corresponding to the max flow"""
+        # Identify nodes reachable from source in final residual graph
+        # In unit capacity networks, these are nodes that aren't "saturated"
+        reachable = set([self.source_node])
+        q = collections.deque([self.source_node])
+        
+        while q:
+            u = q.popleft()
+            for v in self.adj[u]:
+                # Check if edge (u,v) has remaining capacity in residual graph
+                if v not in reachable and ((u,v) not in self.flow or self.flow.get((u,v), 0) == 0):
+                    reachable.add(v)
+                    q.append(v)
+        
+        # Highlight source side nodes
+        anims = []
+        for node_id in reachable:
+            if node_id in self.node_mobjects:
+                dot = self.node_mobjects[node_id][0]
+                anims.append(dot.animate.set_fill(BLUE_B, opacity=0.8))
+        
+        # Highlight sink side nodes
+        sink_side = set(self.vertices_data) - reachable
+        for node_id in sink_side:
+            if node_id in self.node_mobjects:
+                dot = self.node_mobjects[node_id][0]
+                anims.append(dot.animate.set_fill(RED_B, opacity=0.8))
+        
+        # Find cut edges (edges from reachable to non-reachable)
+        cut_edges = []
+        for u in reachable:
+            for v in self.adj[u]:
+                if v not in reachable and (u,v) in self.edge_mobjects:
+                    cut_edges.append(self.edge_mobjects[(u,v)])
+        
+        # Highlight cut edges
+        for edge in cut_edges:
+            anims.append(edge.animate.set_color(YELLOW).set_stroke(width=EDGE_STROKE_WIDTH*1.5))
+        
+        self.play(*anims, run_time=1.5)
+        
+        # Add an explanation
+        self._create_overlay_text(
+            "This is the min-cut corresponding to the max flow\nThe capacity of this cut equals the max flow value",
+            font_size=28,
+            color=YELLOW,
+            duration=4.0
+        )
 
     def construct(self):
         """
@@ -630,6 +732,14 @@ class DinitzUnitCapacityVisualizer(Scene):
         self.wait(1.5)
 
         self.update_section_title("1. Building the Unit-Capacity Network", play_anim=True)
+        
+        # Add an explanatory text about unit capacity networks
+        self._create_overlay_text(
+            "In unit-capacity networks, all edges have capacity = 1\nThis simplifies the algorithm and makes it more efficient", 
+            font_size=28, 
+            color=YELLOW,
+            duration=4.0
+        )
 
         # Initialize algorithm variables
         self.current_phase_num = 0
@@ -710,17 +820,20 @@ class DinitzUnitCapacityVisualizer(Scene):
         
         for u, v in self.edges_list:
             arrow = self.edge_mobjects[(u, v)]
-            capacity_label = Text("1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
             
-            capacity_label.move_to(arrow.get_center())
+            # Create a label showing "0/1" (initial flow/capacity)
+            flow_capacity_label = Text("0/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            
+            flow_capacity_label.move_to(arrow.get_center())
             offset_vector = rotate_vector(arrow.get_unit_vector(), PI/2) * 0.15
-            capacity_label.shift(offset_vector).set_z_index(6)
+            flow_capacity_label.shift(offset_vector).set_z_index(6)
             
-            self.edge_label_groups[(u, v)] = VGroup(capacity_label)
+            # Store the label in edge_label_groups
+            self.edge_label_groups[(u, v)] = VGroup(flow_capacity_label)
             self.base_label_visual_attrs[(u, v)] = {"opacity": 1.0}
             
-            unit_capacity_labels_vgroup.add(capacity_label)
-            capacity_labels_to_animate.append(capacity_label)
+            unit_capacity_labels_vgroup.add(flow_capacity_label)
+            capacity_labels_to_animate.append(flow_capacity_label)
 
         if capacity_labels_to_animate:
             self.play(LaggedStart(*[Write(c) for c in capacity_labels_to_animate], lag_ratio=0.05), run_time=1.2)
@@ -1008,7 +1121,20 @@ class DinitzUnitCapacityVisualizer(Scene):
             self.update_status_text(f"Algorithm Concluded. Sink Unreachable in last BFS. Final Max Flow: {self.max_flow_value}", color=GREEN_A, play_anim=True)
         else:
             self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value}", color=GREEN_A, play_anim=True)
-        self.wait(5.0)
+        self.wait(3.0)
+        
+        # Show the min cut corresponding to the max flow
+        self._highlight_max_flow_cut()
+        
+        # Add a final explanation about unit capacity networks
+        self._create_overlay_text(
+            f"In unit-capacity networks, max flow = {self.max_flow_value} means\nthere are exactly {self.max_flow_value} edge-disjoint paths from s to t", 
+            font_size=28, 
+            color=BLUE_A,
+            duration=5.0
+        )
+        
+        self.wait(2.0)
 
         # --- Final Emphasis Flash Animation ---
         if hasattr(self, 'node_mobjects') and self.node_mobjects and \
