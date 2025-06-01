@@ -118,7 +118,7 @@ class DinitzAlgorithmVisualizer(Scene):
         )
 
     def setup_titles_and_placeholders(self):
-        self.main_title = Text("Visualizing Dinitz's Algorithm on Unit-Capacity Networks", font_size=MAIN_TITLE_FONT_SIZE)
+        self.main_title = Text("Unit-Capacity Networks", font_size=MAIN_TITLE_FONT_SIZE)
         self.main_title.to_edge(UP, buff=BUFF_LARGE).set_z_index(10)
         self.add(self.main_title)
 
@@ -136,7 +136,7 @@ class DinitzAlgorithmVisualizer(Scene):
         ).arrange(DOWN, center=True, buff=BUFF_MED).next_to(self.main_title, DOWN, buff=BUFF_MED)
         self.add(self.info_texts_group)
 
-        self.level_display_vgroup = VGroup().set_z_index(10).to_corner(UR, buff=BUFF_LARGE)
+        self.level_display_vgroup = VGroup().set_z_index(10).to_corner(UR, buff=BUFF_XLARGE)
         self.add(self.level_display_vgroup)
 
         self.sink_action_text_mobj = Text("", font_size=STATUS_TEXT_FONT_SIZE, weight=BOLD, color=YELLOW).set_z_index(RING_Z_INDEX + 50)
@@ -733,7 +733,6 @@ class DinitzAlgorithmVisualizer(Scene):
 
         self.scaled_flow_text_height = None # Will be set after labels are created
         self.update_section_title("1. Building the Unit-Capacity Network", play_anim=True)
-        self.update_status_text("In unit-capacity networks, each edge can carry at most 1 unit of flow.", play_anim=True)
         self.wait(2.0)
 
         # Initialize algorithm variables
@@ -911,7 +910,6 @@ class DinitzAlgorithmVisualizer(Scene):
 
         # --- Start Dinitz Algorithm Phases ---
         self.update_section_title("2. Running Dinitz's Algorithm on Unit-Capacity Network", play_anim=True)
-        self.update_status_text("For unit-capacity networks, each augmenting path adds exactly 1 unit of flow.", play_anim=True)
         self.wait(2.0)
 
         while True: # Main loop for Dinitz phases
