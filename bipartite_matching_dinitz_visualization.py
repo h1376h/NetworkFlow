@@ -1300,8 +1300,17 @@ class DinitzAlgorithmVisualizer(Scene):
                 ReplacementTransform(old_label, new_label, run_time=0.8)
             ])
             
+            # First remove the old node from the scene and network display group
+            if old_label in self.mobjects:
+                self.remove(old_label)
+            if node_group in self.network_display_group:
+                self.network_display_group.remove(node_group)
+            
             # Update the node mobject with the new configuration
             self.node_mobjects[node_id] = VGroup(circle_bg, new_label)
+            
+            # Add the new node configuration to the network display group
+            self.network_display_group.add(self.node_mobjects[node_id])
         
         self.play(*node_transform_anims, run_time=1.2)
         self.wait(0.5)
