@@ -118,7 +118,7 @@ class DinitzAlgorithmVisualizer(Scene):
         )
 
     def setup_titles_and_placeholders(self):
-        self.main_title = Text("Visualizing Dinitz's Algorithm for Max Flow", font_size=MAIN_TITLE_FONT_SIZE)
+        self.main_title = Text("Visualizing Dinitz's Algorithm on Unit-Capacity Networks", font_size=MAIN_TITLE_FONT_SIZE)
         self.main_title.to_edge(UP, buff=BUFF_LARGE).set_z_index(10)
         self.add(self.main_title)
 
@@ -248,21 +248,26 @@ class DinitzAlgorithmVisualizer(Scene):
             self._update_text_generic("calculation_details_mobj", "", STATUS_TEXT_FONT_SIZE, NORMAL, WHITE, play_anim, is_markup=False)
             return
             
-        min_parts = []
+        # For unit-capacity networks, bottleneck is always 1
+        # Instead of showing min calculation, just show the path
+        path_nodes = []
+        prev_u = None
+        
+        # Extract nodes in the path
         for (u, v), _ in path_info:
-            res_cap = self.capacities.get((u, v), 0) - self.flow.get((u, v), 0)
-            u_display = "s" if u == self.source_node else "t" if u == self.sink_node else str(u)
-            v_display = "s" if v == self.source_node else "t" if v == self.sink_node else str(v)
+            if prev_u is None:  # First edge
+                u_display = "s" if u == self.source_node else "t" if u == self.sink_node else str(u)
+                path_nodes.append(u_display)
             
-            formatted_res_cap = self._format_number(res_cap)
-            # MODIFIED: Use new color for numbers via span tag
-            min_parts.append(f"<span fgcolor='{BOTTLENECK_CALCULATION_NUMBER_COLOR.to_hex()}'>{formatted_res_cap}</span> on {u_display}→{v_display}")
+            v_display = "s" if v == self.source_node else "t" if v == self.sink_node else str(v)
+            path_nodes.append(v_display)
+            prev_u = u
         
-        formatted_bottleneck_val = self._format_number(bottleneck_value)
-        # MODIFIED: Construct MarkupText string with colored numbers
-        calculation_markup_str = f"Bottleneck = min({', '.join(min_parts)}) = <span fgcolor='{BOTTLENECK_CALCULATION_NUMBER_COLOR.to_hex()}'>{formatted_bottleneck_val}</span>"
+        path_str = " → ".join(path_nodes)
+        # Create markup text with colored path
+        calculation_markup_str = f"Augmenting Path: <span fgcolor='{GREEN_C.to_hex()}'>{path_str}</span> with flow = <span fgcolor='{BOTTLENECK_CALCULATION_NUMBER_COLOR.to_hex()}'>1</span>"
         
-        # MODIFIED: Update using is_markup=True. Base color YELLOW_B for non-spanned text.
+        # Update using is_markup=True with YELLOW_B for non-spanned text
         self._update_text_generic("calculation_details_mobj", calculation_markup_str, STATUS_TEXT_FONT_SIZE, NORMAL, YELLOW_B, play_anim, is_markup=True)
 
     def _update_sink_action_text(self, state: str, animate=True):
@@ -466,7 +471,13 @@ class DinitzAlgorithmVisualizer(Scene):
 
         self.update_phase_text(f"Phase {self.current_phase_num}: Step 2 - Find Blocking Flow in LG (DFS)", color=ORANGE)
         self.update_status_text("Using DFS to find augmenting paths from S to T in the Level Graph.", play_anim=True)
-        self.wait(3.0)
+        self.wait(1.5)
+        
+        # Add explanation about unit-capacity networks
+        self.update_status_text("In unit-capacity networks, once we use an edge in a path, it becomes saturated.", color=YELLOW_B, play_anim=True)
+        self.wait(2.0)
+        self.update_status_text("Each path we find will add exactly 1 unit to the maximum flow.", color=GREEN_B, play_anim=True)
+        self.wait(1.5)
 
         while True: # Loop to find multiple paths in the current LG
             path_count_this_phase += 1
@@ -562,7 +573,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     bottleneck_edges_for_indication.append(edge_mo_path)
 
             if bottleneck_edges_for_indication:
-                self.update_status_text(f"Path #{path_count_this_phase} found. Bottleneck: {bottleneck_flow:.1f}. Identifying bottleneck edges...", color=YELLOW_A, play_anim=True)
+                self.update_status_text(f"Path #{path_count_this_phase} found. In unit-capacity networks, all edges are bottlenecks.", color=YELLOW_A, play_anim=True)
                 self.wait(1.0)
                 flash_anims = [
                     Indicate(edge_mo, color=BOTTLENECK_EDGE_INDICATE_COLOR, scale_factor=1.05, rate_func=there_and_back_with_pause, run_time=1.2)
@@ -572,7 +583,7 @@ class DinitzAlgorithmVisualizer(Scene):
                     self.play(AnimationGroup(*flash_anims, lag_ratio=0.05))
                     self.wait(0.75)
 
-            self.update_status_text(f"Path #{path_count_this_phase} found. Bottleneck: {bottleneck_flow:.1f}. Augmenting flow...", color=GREEN_A, play_anim=True)
+            self.update_status_text(f"Path #{path_count_this_phase} found. Adding 1 unit of flow...", color=GREEN_A, play_anim=True)
             self._update_sink_action_text("augment")
             self.wait(1.0)
 
@@ -721,7 +732,9 @@ class DinitzAlgorithmVisualizer(Scene):
         self.wait(1.5)
 
         self.scaled_flow_text_height = None # Will be set after labels are created
-        self.update_section_title("1. Building the Flow Network", play_anim=True)
+        self.update_section_title("1. Building the Unit-Capacity Network", play_anim=True)
+        self.update_status_text("In unit-capacity networks, each edge can carry at most 1 unit of flow.", play_anim=True)
+        self.wait(2.0)
 
         # Initialize algorithm variables
         self.current_phase_num = 0
@@ -730,9 +743,11 @@ class DinitzAlgorithmVisualizer(Scene):
         # Define graph structure (nodes, edges, capacities)
         self.source_node, self.sink_node = 1, 10
         self.vertices_data = list(range(1, 11))
+        
+        # Unit capacity network - all edges have capacity 1
         self.edges_with_capacity_list = [
-            (1,2,25),(1,3,30),(1,4,20),(2,5,25),(3,4,30),(3,5,35),(4,6,30),
-            (5,7,40),(5,8,40),(6,8,35),(6,9,30),(7,10,20),(8,10,20),(9,10,20)
+            (1,2,1), (1,3,1), (1,4,1), (2,5,1), (3,4,1), (3,5,1), (4,6,1),
+            (5,7,1), (5,8,1), (6,8,1), (6,9,1), (7,10,1), (8,10,1), (9,10,1)
         ]
         self.original_edge_tuples = set([(u,v) for u,v,c in self.edges_with_capacity_list])
 
@@ -895,8 +910,9 @@ class DinitzAlgorithmVisualizer(Scene):
         self.wait(0.5)
 
         # --- Start Dinitz Algorithm Phases ---
-        self.update_section_title("2. Running Dinitz's Algorithm", play_anim=True)
-        self.wait(1.0)
+        self.update_section_title("2. Running Dinitz's Algorithm on Unit-Capacity Network", play_anim=True)
+        self.update_status_text("For unit-capacity networks, each augmenting path adds exactly 1 unit of flow.", play_anim=True)
+        self.wait(2.0)
 
         while True: # Main loop for Dinitz phases
             self.current_phase_num += 1
@@ -1094,14 +1110,17 @@ class DinitzAlgorithmVisualizer(Scene):
                     self.wait(3.0)
 
         # Algorithm conclusion
-        self.update_section_title("3. Dinitz Algorithm Summary", play_anim=True)
+        self.update_section_title("3. Dinitz Algorithm on Unit-Capacity Networks Summary", play_anim=True)
         self.wait(1.0)
+        
         if self.levels.get(self.sink_node, -1) == -1 and self.max_flow_value == 0 :
-            self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Max Flow: {self.max_flow_value:.1f}", color=RED_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Sink Unreachable. Max Flow: {self.max_flow_value}", color=RED_A, play_anim=True)
         elif self.levels.get(self.sink_node, -1) == -1 :
-            self.update_status_text(f"Algorithm Concluded. Sink Unreachable in last BFS. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Max Flow: {self.max_flow_value} (which equals the number of disjoint paths)", color=GREEN_A, play_anim=True)
+            self.wait(2.0)
+            self.update_status_text(f"In unit-capacity networks, max flow equals the number of edge-disjoint paths.", color=BLUE_B, play_anim=True)
         else:
-            self.update_status_text(f"Algorithm Concluded. Final Max Flow: {self.max_flow_value:.1f}", color=GREEN_A, play_anim=True)
+            self.update_status_text(f"Algorithm Concluded. Max Flow: {self.max_flow_value}", color=GREEN_A, play_anim=True)
         self.wait(5.0)
 
         # --- Final Emphasis Flash Animation ---
