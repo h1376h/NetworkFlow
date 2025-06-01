@@ -31,6 +31,18 @@ RING_STROKE_WIDTH = 3.5
 RING_RADIUS_OFFSET = 0.1
 RING_Z_INDEX = 20
 
+# Added padding for network to prevent overlap with titles
+NETWORK_TOP_PADDING = 1.2  # Reduced from 1.8 to position network higher
+NETWORK_CENTER_Y_OFFSET = 0.3  # Slight upward adjustment for better centering
+
+# Scale factors for SVGs
+SVG_SCALE = 0.15
+NETWORK_SCALE = 0.7  # Reduced from 0.8 for better fit
+
+# Icon background for better visibility
+ICON_BACKGROUND_COLOR = BLACK
+ICON_BACKGROUND_OPACITY = 0.9
+
 LEVEL_COLORS = [RED_D, ORANGE, YELLOW_D, GREEN_D, BLUE_D, PURPLE_D, PINK]
 DEFAULT_NODE_COLOR = BLUE_E
 STUDENT_NODE_COLOR = BLUE_D
@@ -483,22 +495,22 @@ class BipartiteMatchingDinitz(Scene):
         self.sink_node = "sink"
         all_nodes = [self.source_node] + self.student_nodes + self.book_nodes + [self.sink_node]
         
-        # Node positions
+        # Node positions - reduced horizontal spread
         student_positions = [
-            LEFT * 3 + UP * 2,
-            LEFT * 3,
-            LEFT * 3 + DOWN * 2
+            LEFT * 2.5 + UP * 1.5,
+            LEFT * 2.5,
+            LEFT * 2.5 + DOWN * 1.5
         ]
         
         book_positions = [
-            RIGHT * 3 + UP * 3,
-            RIGHT * 3 + UP * 1,
-            RIGHT * 3 + DOWN * 1,
-            RIGHT * 3 + DOWN * 3
+            RIGHT * 2.5 + UP * 2,
+            RIGHT * 2.5 + UP * 0.7,
+            RIGHT * 2.5 + DOWN * 0.7,
+            RIGHT * 2.5 + DOWN * 2
         ]
         
-        source_position = LEFT * 6
-        sink_position = RIGHT * 6
+        source_position = LEFT * 5
+        sink_position = RIGHT * 5
         
         # Node colors
         node_colors = {
@@ -565,9 +577,9 @@ class BipartiteMatchingDinitz(Scene):
         self.edge_labels = {}
         
         # Load SVG icons
-        student_0_svg = SVGMobject("student_0.svg").scale(0.2)
-        student_1_svg = SVGMobject("student_1.svg").scale(0.2)
-        book_svg = SVGMobject("book.svg").scale(0.2)
+        student_0_svg = SVGMobject("student_0.svg").scale(SVG_SCALE)
+        student_1_svg = SVGMobject("student_1.svg").scale(SVG_SCALE)
+        book_svg = SVGMobject("book.svg").scale(SVG_SCALE)
         
         # Create nodes
         for node in all_nodes:
@@ -591,22 +603,43 @@ class BipartiteMatchingDinitz(Scene):
                 z_index=11
             ).next_to(dot, DOWN, buff=BUFF_SMALL)
             
-            # For students and books, add SVG icons
-            icon = None
+            # For students and books, add SVG icons with background
+            icon_group = None
             if node in self.student_nodes:
+                # Create background circle for icon
+                icon_bg = Circle(
+                    radius=NODE_RADIUS * 0.9,
+                    fill_color=ICON_BACKGROUND_COLOR,
+                    fill_opacity=ICON_BACKGROUND_OPACITY,
+                    stroke_width=0,
+                    z_index=12
+                ).move_to(dot.get_center())
+                
                 # Alternate between student icons
                 if self.student_nodes.index(node) % 2 == 0:
                     icon = student_0_svg.copy()
                 else:
                     icon = student_1_svg.copy()
-                icon.move_to(dot.get_center())
+                icon.move_to(dot.get_center()).set_z_index(13)
+                icon_group = VGroup(icon_bg, icon)
+                
             elif node in self.book_nodes:
+                # Create background circle for icon
+                icon_bg = Circle(
+                    radius=NODE_RADIUS * 0.9,
+                    fill_color=ICON_BACKGROUND_COLOR,
+                    fill_opacity=ICON_BACKGROUND_OPACITY,
+                    stroke_width=0,
+                    z_index=12
+                ).move_to(dot.get_center())
+                
                 icon = book_svg.copy()
-                icon.move_to(dot.get_center())
+                icon.move_to(dot.get_center()).set_z_index(13)
+                icon_group = VGroup(icon_bg, icon)
             
-            # Group dot and label (and icon if present)
-            if icon:
-                self.node_mobjects[node] = VGroup(dot, label, icon)
+            # Group dot, label, and icon (if present)
+            if icon_group:
+                self.node_mobjects[node] = VGroup(dot, label, icon_group)
             else:
                 self.node_mobjects[node] = VGroup(dot, label)
         
@@ -634,6 +667,40 @@ class BipartiteMatchingDinitz(Scene):
             
             reverse_edge_arrow.set_opacity(0)
             self.edge_arrows[(v, u)] = reverse_edge_arrow
+        
+        # Group all network elements
+        network_group = VGroup()
+        for node in all_nodes:
+            network_group.add(self.node_mobjects[node])
+        
+        for u, v in self.original_edges:
+            network_group.add(self.edge_arrows[(u, v)])
+            network_group.add(self.edge_arrows[(v, u)])
+        
+        # Scale and position the network to prevent overlap with titles
+        network_group.scale(NETWORK_SCALE)
+        
+        # Position network below the title area with sufficient padding
+        title_bottom = self.info_texts_group.get_bottom()[1]
+        
+        # Center the network in the available vertical space
+        available_height = title_bottom - (-config.frame_height/2)
+        network_height = network_group.height
+        
+        # Calculate y-position that centers the network in available space
+        # with a slight upward adjustment
+        center_y = title_bottom - NETWORK_TOP_PADDING - (network_height/2) + NETWORK_CENTER_Y_OFFSET
+        
+        # Make sure we're not too close to the title
+        if center_y + (network_height/2) > title_bottom - NETWORK_TOP_PADDING:
+            center_y = title_bottom - NETWORK_TOP_PADDING - (network_height/2)
+        
+        # Make sure we're not too close to the bottom
+        if center_y - (network_height/2) < -config.frame_height/2 + BUFF_LARGE:
+            center_y = (-config.frame_height/2) + BUFF_LARGE + (network_height/2)
+        
+        # Set the network position
+        network_group.move_to([0, center_y, 0])
         
         # Animation to show the network
         self.update_section_title("Bipartite Matching Network", play_anim=True)
