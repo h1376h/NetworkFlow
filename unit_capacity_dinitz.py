@@ -495,14 +495,56 @@ class UnitCapacityDinitzVisualizer(Scene):
 
                 # Update flow values and edge appearances
                 visual_updates_this_edge = []
+                text_updates_this_edge = []
                 
                 # Update flow along the edge
                 self.flow[(u, v)] = 1  # For unit capacity networks, flow is either 0 or 1
+                
+                # Check if we need to add the flow and slash or just update existing flow
+                if (u, v) not in self.edge_flow_val_text_mobjects or not self.edge_flow_val_text_mobjects.get((u, v)):
+                    # First time flowing on this edge - need to add flow value and slash
+                    flow_val_mobj = Text("1", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
+                    slash_mobj = Text("/", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
+                    
+                    self.edge_flow_val_text_mobjects[(u, v)] = flow_val_mobj
+                    self.edge_slash_text_mobjects[(u, v)] = slash_mobj
+                    
+                    # Get the existing capacity text
+                    cap_text_mobj = self.edge_capacity_text_mobjects.get((u, v))
+                    
+                    if cap_text_mobj:
+                        # Create the label group with flow/capacity
+                        label_group = VGroup(flow_val_mobj, slash_mobj, cap_text_mobj).arrange(RIGHT, buff=BUFF_VERY_SMALL)
+                        label_group.move_to(cap_text_mobj.get_center())
+                        self.edge_label_groups[(u, v)] = label_group
+                        
+                        # Animate the appearance of flow and slash
+                        text_updates_this_edge.extend([
+                            FadeIn(flow_val_mobj),
+                            FadeIn(slash_mobj)
+                        ])
+                else:
+                    # Update existing flow value
+                    old_flow_text_mobj = self.edge_flow_val_text_mobjects[(u, v)]
+                    new_flow_str_uv = "1"
+                    target_text_template_uv = Text(new_flow_str_uv, font=old_flow_text_mobj.font, font_size=old_flow_text_mobj.font_size, color=LABEL_TEXT_COLOR)
+                    target_text_template_uv.move_to(old_flow_text_mobj.get_center())
+                    text_updates_this_edge.append(old_flow_text_mobj.animate.become(target_text_template_uv))
                 
                 # Edge is now saturated - dim it
                 visual_updates_this_edge.append(
                     edge_mo.animate.set_color(DIMMED_COLOR).set_opacity(DIMMED_OPACITY).set_stroke(width=EDGE_STROKE_WIDTH)
                 )
+                
+                # Also dim the label group if it exists
+                if (u, v) in self.edge_label_groups and self.edge_label_groups[(u, v)]:
+                    visual_updates_this_edge.append(
+                        self.edge_label_groups[(u, v)].animate.set_opacity(DIMMED_OPACITY)
+                    )
+                elif (u, v) in self.edge_capacity_text_mobjects and self.edge_capacity_text_mobjects[(u, v)]:
+                    visual_updates_this_edge.append(
+                        self.edge_capacity_text_mobjects[(u, v)].animate.set_opacity(DIMMED_OPACITY)
+                    )
                 
                 # Create reverse edge if it doesn't exist
                 if (v, u) not in self.edge_mobjects and (v, u) not in self.original_edge_tuples:
@@ -535,11 +577,29 @@ class UnitCapacityDinitzVisualizer(Scene):
                         "opacity": REVERSE_EDGE_OPACITY
                     }
                     
-                    self.network_display_group.add(rev_arrow)
-                    self.add(rev_arrow)
+                    # Create a "1" capacity label for the reverse edge
+                    rev_cap_text_mobj = Text("1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR, opacity=0)
+                    rev_cap_text_mobj.move_to(rev_arrow.get_center())
+                    # VGroup doesn't have get_unit_vector, use the line segment to calculate direction
+                    if hasattr(base_arrow_rev[0], 'get_unit_vector'):
+                        rev_offset_vector = rotate_vector(base_arrow_rev[0].get_unit_vector(), PI/2) * 0.15
+                    else:
+                        # Fallback: calculate from start to end points
+                        start_point = base_arrow_rev[0].get_start()
+                        end_point = base_arrow_rev[0].get_end()
+                        direction = normalize(end_point - start_point)
+                        rev_offset_vector = rotate_vector(direction, PI/2) * 0.15
                     
-                    # Make the reverse edge visible
+                    rev_cap_text_mobj.shift(rev_offset_vector).set_z_index(6)
+                    
+                    self.edge_capacity_text_mobjects[(v, u)] = rev_cap_text_mobj
+                    
+                    self.network_display_group.add(rev_arrow, rev_cap_text_mobj)
+                    self.add(rev_arrow, rev_cap_text_mobj)
+                    
+                    # Make the reverse edge and its capacity label visible
                     visual_updates_this_edge.append(rev_arrow.animate.set_opacity(REVERSE_EDGE_OPACITY))
+                    visual_updates_this_edge.append(rev_cap_text_mobj.animate.set_opacity(1.0))
                     
                     # Update adjacency list if needed
                     if u not in self.adj[v]:
@@ -552,12 +612,29 @@ class UnitCapacityDinitzVisualizer(Scene):
                     visual_updates_this_edge.append(
                         rev_edge_mo_vu.animate.set_color(REVERSE_EDGE_COLOR).set_opacity(REVERSE_EDGE_OPACITY)
                     )
+                    
+                    # Update the reverse edge capacity label if not already visible
+                    if (v, u) in self.edge_capacity_text_mobjects:
+                        rev_cap_text = self.edge_capacity_text_mobjects[(v, u)]
+                        # Use a safer check for opacity instead of get_opacity()
+                        try:
+                            text_is_visible = rev_cap_text.get_opacity() >= 0.5
+                        except:
+                            # Fallback if get_opacity is not available
+                            text_is_visible = hasattr(rev_cap_text, 'opacity') and rev_cap_text.opacity >= 0.5
+                            
+                        if not text_is_visible:  # If not already visible
+                            visual_updates_this_edge.append(
+                                rev_cap_text.animate.set_opacity(1.0)
+                            )
 
-                update_group_for_this_edge = AnimationGroup(
-                    *visual_updates_this_edge,
-                    lag_ratio=0.0,
-                    run_time=EDGE_UPDATE_RUNTIME
-                )
+                # Combine all animations
+                if text_updates_this_edge or visual_updates_this_edge:
+                    update_group_for_this_edge = AnimationGroup(
+                        *(visual_updates_this_edge + text_updates_this_edge),
+                        lag_ratio=0.0,
+                        run_time=EDGE_UPDATE_RUNTIME
+                    )
                 animations_for_current_edge_step.append(update_group_for_this_edge)
                 
                 path_augmentation_sequence.append(Succession(*animations_for_current_edge_step, lag_ratio=1.0))
@@ -858,25 +935,39 @@ class UnitCapacityDinitzVisualizer(Scene):
         )
         self.wait(0.5)
 
-        # Add labels for unit capacity (just "1" on each edge)
+        # Add labels for unit capacity - just show capacity first like in dinitz_visualization.py
         all_edge_labels_vgroup = VGroup()
-        capacity_labels_to_animate = []
         
         for u, v, _ in self.edges_with_capacity_list:
             edge = self.edge_mobjects[(u, v)]
-            capacity_label = Text("1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
-            capacity_label.move_to(edge.get_center())
+            
+            # Create just capacity label first (will add flow later)
+            cap_text_mobj = Text("1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            
+            # Store references for later use
+            if not hasattr(self, 'edge_flow_val_text_mobjects'):
+                self.edge_flow_val_text_mobjects = {}
+            if not hasattr(self, 'edge_slash_text_mobjects'):
+                self.edge_slash_text_mobjects = {}
+            if not hasattr(self, 'edge_capacity_text_mobjects'):
+                self.edge_capacity_text_mobjects = {}
+            if not hasattr(self, 'edge_label_groups'):
+                self.edge_label_groups = {}
+                
+            self.edge_capacity_text_mobjects[(u, v)] = cap_text_mobj
+            
+            # Position the capacity label
+            cap_text_mobj.move_to(edge.get_center())
             
             # Offset label from edge
             offset_vector = rotate_vector(edge.get_unit_vector(), PI/2) * 0.15
-            capacity_label.shift(offset_vector).set_z_index(6)
+            cap_text_mobj.shift(offset_vector).set_z_index(6)
             
-            all_edge_labels_vgroup.add(capacity_label)
-            capacity_labels_to_animate.append(capacity_label)
-            
-        if capacity_labels_to_animate:
+            all_edge_labels_vgroup.add(cap_text_mobj)
+        
+        if all_edge_labels_vgroup.submobjects:
             self.play(
-                LaggedStart(*[Write(c) for c in capacity_labels_to_animate], lag_ratio=0.05),
+                LaggedStart(*[Write(c) for c in all_edge_labels_vgroup], lag_ratio=0.05),
                 run_time=1.2
             )
             self.wait(0.5)
