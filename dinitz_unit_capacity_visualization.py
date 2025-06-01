@@ -780,7 +780,7 @@ class DinitzUnitCapacityVisualizer(Scene):
         self.base_label_visual_attrs = {}
         self.edge_label_groups = {}
 
-        self.desired_large_scale = 1.6  # Scale factor for the main graph display
+        self.desired_large_scale = 1.1  # Scale factor for the main graph display
 
         # Create and animate node mobjects (dots and labels)
         nodes_vgroup = VGroup()
