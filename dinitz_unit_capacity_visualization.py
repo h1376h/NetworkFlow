@@ -166,6 +166,7 @@ class DinitzUnitCapacityVisualizer(Scene):
 
         if is_markup:
             new_mobj = MarkupText(new_text_content, font_size=font_size, color=color)
+            # Weight for MarkupText is typically handled via Pango tags within new_text_content
         elif is_latex:
             new_mobj = Tex(new_text_content, color=color)
             ref_text_for_height = Text("Mg", font_size=font_size)
@@ -309,7 +310,7 @@ class DinitzUnitCapacityVisualizer(Scene):
             if new_text_str: 
                 self.add(target_mobj)
 
-        self.sink_action_text_mobj = target_mobj 
+        self.sink_action_text_mobj = target_mobj
 
     def _dfs_advance_and_retreat(self, u, current_path_info_list):
         """
@@ -528,15 +529,21 @@ class DinitzUnitCapacityVisualizer(Scene):
                         "opacity": REVERSE_EDGE_OPACITY
                     }
                     
+                    # For unit capacity networks, we don't need residual capacity labels on reverse edges
+                    self.edge_label_groups[(v, u)] = VGroup()
+                    self.base_label_visual_attrs[(v, u)] = {"opacity": 0.0}
+                    
                     self.network_display_group.add(rev_arrow)
                     self.add(rev_arrow)
 
                     forward_edge_mo = self.edge_mobjects[(u, v)]
+                    forward_label = self.edge_label_groups.get((u, v))
 
                     anim_fwd_edge = forward_edge_mo.animate.shift(fwd_shift_vector)
+                    anim_fwd_label = forward_label.animate.shift(fwd_shift_vector) if forward_label else AnimationGroup()
                     anim_rev_edge = rev_arrow.animate.set_opacity(REVERSE_EDGE_OPACITY)
 
-                    pre_augment_animations.append(AnimationGroup(anim_fwd_edge, anim_rev_edge))
+                    pre_augment_animations.append(AnimationGroup(anim_fwd_edge, anim_fwd_label, anim_rev_edge))
 
             if pre_augment_animations:
                 self.play(AnimationGroup(*pre_augment_animations, lag_ratio=0.1, run_time=0.6))
@@ -573,32 +580,96 @@ class DinitzUnitCapacityVisualizer(Scene):
                 animations_for_current_edge_step.append(pulse_animation)
 
                 # 2. Prepare animations for visual updates
+                text_updates_this_edge = []
                 visual_updates_this_edge = []
 
-                # In unit-capacity networks, edges are either flowing (1) or not (0)
+                # In unit capacity networks, edges are either flowing (1) or not (0)
                 self.flow[(u,v)] = 1  # Set flow to 1 for forward edge
                 self.flow[(v,u)] = -1 # Set flow to -1 for reverse edge (cancels out forward)
 
                 # Update edge appearance for forward edge
                 visual_updates_this_edge.append(edge_mo.animate.set_color(DIMMED_COLOR).set_opacity(DIMMED_OPACITY).set_stroke(width=EDGE_STROKE_WIDTH))
                 
+                # Update flow label for forward edge
+                if (u,v) in self.edge_label_groups and self.edge_label_groups[(u,v)].submobjects:
+                    label = self.edge_label_groups[(u,v)][0]
+                    new_label = Text("1/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=GREEN_C)
+                    new_label.move_to(label.get_center())
+                    text_updates_this_edge.append(label.animate.become(new_label))
+                
                 # Update reverse edge appearance if it exists
                 if (v,u) in self.edge_mobjects:
                     rev_edge_mo_vu = self.edge_mobjects[(v,u)]
                     
                     # Activate the reverse edge
-                    base_attrs = self.base_edge_visual_attrs.get((v, u), {})
-                    color = LEVEL_COLORS[self.levels[v]%len(LEVEL_COLORS)]  # Use level color for reverse edge
-                    opacity = 0.7
-                    width = base_attrs.get("stroke_width", EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR)
-                    
+                    lg_color = LEVEL_COLORS[self.levels[v]%len(LEVEL_COLORS)]  # Use level color for reverse edge
                     visual_updates_this_edge.append(
-                        rev_edge_mo_vu.animate.set_color(color).set_opacity(opacity).set_stroke(width=width)
+                        rev_edge_mo_vu.animate.set_color(lg_color).set_opacity(0.7).set_stroke(width=EDGE_STROKE_WIDTH * REVERSE_EDGE_STROKE_WIDTH_FACTOR)
                     )
+                    
+                    # Add or update label for reverse edge if needed
+                    if (v,u) in self.edge_label_groups:
+                        if not self.edge_label_groups[(v,u)].submobjects:
+                            # Create new label for reverse edge
+                            rev_label = Text("0/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=GREY_C)
+                            rev_label.move_to(rev_edge_mo_vu.get_center())
+                            # Get the direction vector from the arrow - AVOID CALLING get_unit_vector() directly
+                            # Instead, always calculate direction from start and end points
+                            try:
+                                if hasattr(rev_edge_mo_vu, 'get_start') and hasattr(rev_edge_mo_vu, 'get_end'):
+                                    # Try to use the main object
+                                    start = rev_edge_mo_vu.get_start()
+                                    end = rev_edge_mo_vu.get_end()
+                                    direction = end - start
+                                    if np.linalg.norm(direction) > 0:
+                                        direction_vector = normalize(direction)
+                                    else:
+                                        direction_vector = np.array([1, 0, 0])
+                                elif len(rev_edge_mo_vu) > 0 and hasattr(rev_edge_mo_vu[0], 'get_start') and hasattr(rev_edge_mo_vu[0], 'get_end'):
+                                    # Try to get direction from first component
+                                    start = rev_edge_mo_vu[0].get_start()
+                                    end = rev_edge_mo_vu[0].get_end()
+                                    direction = end - start
+                                    if np.linalg.norm(direction) > 0:
+                                        direction_vector = normalize(direction)
+                                    else:
+                                        direction_vector = np.array([1, 0, 0])
+                                elif len(rev_edge_mo_vu) > 0 and hasattr(rev_edge_mo_vu[0], 'submobjects') and len(rev_edge_mo_vu[0].submobjects) > 0:
+                                    # Try to get direction from first submobject
+                                    first_submob = rev_edge_mo_vu[0].submobjects[0]
+                                    if hasattr(first_submob, 'get_start') and hasattr(first_submob, 'get_end'):
+                                        start = first_submob.get_start()
+                                        end = first_submob.get_end()
+                                        direction = end - start
+                                        if np.linalg.norm(direction) > 0:
+                                            direction_vector = normalize(direction)
+                                        else:
+                                            direction_vector = np.array([1, 0, 0])
+                                    else:
+                                        direction_vector = np.array([1, 0, 0])
+                                else:
+                                    # Default fallback
+                                    direction_vector = np.array([1, 0, 0])
+                            except Exception as e:
+                                print(f"Warning: Could not calculate direction vector: {e}")
+                                direction_vector = np.array([1, 0, 0])
+                            
+                            offset_vector = rotate_vector(direction_vector, PI/2) * 0.15
+                            rev_label.shift(offset_vector).set_z_index(6)
+                            self.edge_label_groups[(v,u)].add(rev_label)
+                            self.network_display_group.add(rev_label)
+                            self.add(rev_label)
+                            text_updates_this_edge.append(rev_label.animate.set_opacity(0.7))
+                        else:
+                            # Update existing label
+                            rev_label = self.edge_label_groups[(v,u)][0]
+                            new_rev_label = Text("0/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=GREY_C)
+                            new_rev_label.move_to(rev_label.get_center())
+                            text_updates_this_edge.append(rev_label.animate.become(new_rev_label).set_opacity(0.7))
 
-                if visual_updates_this_edge:
+                if text_updates_this_edge or visual_updates_this_edge:
                     update_group_for_this_edge = AnimationGroup(
-                        *visual_updates_this_edge,
+                        *(text_updates_this_edge + visual_updates_this_edge),
                         lag_ratio=0.0,
                         run_time=EDGE_UPDATE_RUNTIME
                     )
@@ -618,21 +689,6 @@ class DinitzUnitCapacityVisualizer(Scene):
             self._update_sink_action_text("nothing", animate=True)
             self.update_status_text(f"Flow augmented. Current phase flow: {total_flow_this_phase}. Searching for next path...", color=WHITE, play_anim=True)
             self.wait(2.5)
-
-            # Update flow labels on the forward edges
-            for (u, v), edge_mo in current_path_anim_info:
-                if (u, v) in self.edge_label_groups:
-                    label = self.edge_label_groups[(u, v)][0]
-                    new_label = Text("1/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=GREEN_C)
-                    new_label.move_to(label.get_center())
-                    self.play(Transform(label, new_label), run_time=0.4)
-                
-                # Update reverse edge label if it exists
-                if (v, u) in self.edge_label_groups:
-                    rev_label = self.edge_label_groups[(v, u)][0]
-                    new_rev_label = Text("0/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=GREY_C)
-                    new_rev_label.move_to(rev_label.get_center())
-                    self.play(Transform(rev_label, new_rev_label), run_time=0.4)
             
             # If this is the first augmenting path, show an explanation
             if path_count_this_phase == 1:
@@ -648,7 +704,7 @@ class DinitzUnitCapacityVisualizer(Scene):
         if self.sink_action_text_mobj.text != "":
             self._update_sink_action_text("nothing", animate=True)
 
-        return total_flow_this_phase 
+        return total_flow_this_phase
 
     def _create_overlay_text(self, text_content, position=None, font_size=24, color=WHITE, duration=3.0):
         """
@@ -731,6 +787,7 @@ class DinitzUnitCapacityVisualizer(Scene):
         self.play(Write(self.main_title), run_time=1)
         self.wait(1.5)
 
+        self.scaled_flow_text_height = None # Will be set after labels are created
         self.update_section_title("1. Building the Unit-Capacity Network", play_anim=True)
         
         # Add an explanatory text about unit capacity networks
@@ -777,8 +834,12 @@ class DinitzUnitCapacityVisualizer(Scene):
         # Dictionaries to store mobjects
         self.node_mobjects = {}
         self.edge_mobjects = {}
-        self.base_label_visual_attrs = {}
+        self.edge_capacity_text_mobjects = {}
+        self.edge_flow_val_text_mobjects = {}
+        self.edge_slash_text_mobjects = {}
         self.edge_label_groups = {}
+        self.base_label_visual_attrs = {}
+        self.edge_residual_capacity_mobjects = {}
 
         self.desired_large_scale = 1.1  # Scale factor for the main graph display
 
@@ -814,33 +875,85 @@ class DinitzUnitCapacityVisualizer(Scene):
         self.play(LaggedStart(*edge_grow_anims, lag_ratio=0.05), run_time=1.5)
         self.wait(0.5)
 
-        # For unit capacity networks, we display "1" on each edge to indicate capacity
-        unit_capacity_labels_vgroup = VGroup()
-        capacity_labels_to_animate = []
+        # For unit capacity networks, we show "0/1" (initial flow/capacity) on each edge
+        all_edge_labels_vgroup = VGroup()
+        capacities_to_animate_write = []
+        flow_slashes_to_animate_write = []
         
         for u, v in self.edges_list:
             arrow = self.edge_mobjects[(u, v)]
             
-            # Create a label showing "0/1" (initial flow/capacity)
-            flow_capacity_label = Text("0/1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
-            
-            flow_capacity_label.move_to(arrow.get_center())
-            offset_vector = rotate_vector(arrow.get_unit_vector(), PI/2) * 0.15
-            flow_capacity_label.shift(offset_vector).set_z_index(6)
-            
-            # Store the label in edge_label_groups
-            self.edge_label_groups[(u, v)] = VGroup(flow_capacity_label)
-            self.base_label_visual_attrs[(u, v)] = {"opacity": 1.0}
-            
-            unit_capacity_labels_vgroup.add(flow_capacity_label)
-            capacity_labels_to_animate.append(flow_capacity_label)
+            # Create separate mobjects for flow, slash, and capacity (for easier updates)
+            flow_val_mobj = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            slash_mobj = Text("/", font_size=EDGE_FLOW_PREFIX_FONT_SIZE, color=LABEL_TEXT_COLOR)
+            cap_text_mobj = Text("1", font_size=EDGE_CAPACITY_LABEL_FONT_SIZE, color=LABEL_TEXT_COLOR)
 
-        if capacity_labels_to_animate:
-            self.play(LaggedStart(*[Write(c) for c in capacity_labels_to_animate], lag_ratio=0.05), run_time=1.2)
+            self.edge_flow_val_text_mobjects[(u,v)] = flow_val_mobj
+            self.edge_slash_text_mobjects[(u,v)] = slash_mobj
+            self.edge_capacity_text_mobjects[(u,v)] = cap_text_mobj
+            self.base_label_visual_attrs[(u,v)] = {"opacity": 1.0}
+
+            label_group = VGroup(flow_val_mobj, slash_mobj, cap_text_mobj).arrange(RIGHT, buff=BUFF_VERY_SMALL)
+            label_group.move_to(arrow.get_center())
+            
+            # Get the direction vector from the arrow - AVOID CALLING get_unit_vector() directly
+            # Instead, always calculate direction from start and end points
+            try:
+                if hasattr(arrow, 'get_start') and hasattr(arrow, 'get_end'):
+                    start = arrow.get_start()
+                    end = arrow.get_end()
+                    direction = end - start
+                    if np.linalg.norm(direction) > 0:
+                        direction_vector = normalize(direction)
+                    else:
+                        direction_vector = np.array([1, 0, 0])
+                elif len(arrow) > 0 and hasattr(arrow[0], 'get_start') and hasattr(arrow[0], 'get_end'):
+                    # Try to get direction from first component
+                    start = arrow[0].get_start()
+                    end = arrow[0].get_end()
+                    direction = end - start
+                    if np.linalg.norm(direction) > 0:
+                        direction_vector = normalize(direction)
+                    else:
+                        direction_vector = np.array([1, 0, 0])
+                elif len(arrow) > 0 and hasattr(arrow[0], 'submobjects') and len(arrow[0].submobjects) > 0:
+                    # Try to get direction from first submobject
+                    first_submob = arrow[0].submobjects[0]
+                    if hasattr(first_submob, 'get_start') and hasattr(first_submob, 'get_end'):
+                        start = first_submob.get_start()
+                        end = first_submob.get_end()
+                        direction = end - start
+                        if np.linalg.norm(direction) > 0:
+                            direction_vector = normalize(direction)
+                        else:
+                            direction_vector = np.array([1, 0, 0])
+                    else:
+                        direction_vector = np.array([1, 0, 0])
+                else:
+                    # Default fallback
+                    direction_vector = np.array([1, 0, 0])
+            except Exception as e:
+                print(f"Warning: Could not calculate direction vector: {e}")
+                direction_vector = np.array([1, 0, 0])
+                    
+            offset_vector = rotate_vector(direction_vector, PI/2) * 0.15
+            label_group.shift(offset_vector).set_z_index(6)
+            
+            self.edge_label_groups[(u,v)] = label_group
+            all_edge_labels_vgroup.add(label_group)
+            capacities_to_animate_write.append(cap_text_mobj)
+            flow_slashes_to_animate_write.append(VGroup(flow_val_mobj, slash_mobj))
+
+        if capacities_to_animate_write: 
+            self.play(LaggedStart(*[Write(c) for c in capacities_to_animate_write], lag_ratio=0.05), run_time=1.2)
+            self.wait(0.5)
+            
+        if flow_slashes_to_animate_write: 
+            self.play(LaggedStart(*[Write(fs_group) for fs_group in flow_slashes_to_animate_write], lag_ratio=0.05), run_time=1.2)
             self.wait(0.5)
 
         # Group all network elements and scale/position them
-        self.network_display_group = VGroup(nodes_vgroup, edges_vgroup, unit_capacity_labels_vgroup)
+        self.network_display_group = VGroup(nodes_vgroup, edges_vgroup, all_edge_labels_vgroup)
         temp_scaled_network_for_height = self.network_display_group.copy().scale(self.desired_large_scale)
         network_target_y = (-config.frame_height / 2) + (temp_scaled_network_for_height.height / 2) + BUFF_XLARGE
         target_position = np.array([0, network_target_y, 0])
@@ -865,6 +978,18 @@ class DinitzUnitCapacityVisualizer(Scene):
             self.sink_action_text_mobj.next_to(source_node_dot, UP, buff=BUFF_SMALL)
         else:
             self.sink_action_text_mobj.to_corner(UL, buff=BUFF_MED)
+
+        # Determine scaled height for flow text labels for consistency
+        sample_text_mobj = None
+        for key_orig_edge in self.original_edge_tuples:
+            if key_orig_edge in self.edge_flow_val_text_mobjects and self.edge_flow_val_text_mobjects[key_orig_edge] is not None:
+                sample_text_mobj = self.edge_flow_val_text_mobjects[key_orig_edge]
+                break
+        if sample_text_mobj:
+            self.scaled_flow_text_height = sample_text_mobj.height
+        else:
+            dummy_text_unscaled = Text("0", font_size=EDGE_FLOW_PREFIX_FONT_SIZE)
+            self.scaled_flow_text_height = dummy_text_unscaled.scale(self.desired_large_scale).height
 
         # Store base visual attributes for nodes
         self.base_node_visual_attrs = {}
@@ -998,7 +1123,7 @@ class DinitzUnitCapacityVisualizer(Scene):
                     for v_n_bfs in sorted_neighbors_bfs:
                         edge_key_bfs = (u_bfs, v_n_bfs)
                         
-                        # In unit-capacity networks, residual capacity is either 0 or 1
+                        # In unit capacity networks, residual capacity is either 0 or 1
                         res_cap_bfs = 1 if self.flow.get(edge_key_bfs, 0) == 0 else 0
                         edge_mo_bfs = self.edge_mobjects.get(edge_key_bfs)
 
@@ -1071,7 +1196,7 @@ class DinitzUnitCapacityVisualizer(Scene):
 
                 lg_iso_anims = []
                 for (u_lg, v_lg), edge_mo_lg in self.edge_mobjects.items():
-                    # In unit-capacity networks, residual capacity is either 0 or 1
+                    # In unit capacity networks, residual capacity is either 0 or 1
                     res_cap_lg_val = 1 if self.flow.get((u_lg, v_lg), 0) == 0 else 0
                     is_lg_edge = (self.levels.get(u_lg, -1) != -1 and self.levels.get(v_lg, -1) != -1 and
                                  self.levels[v_lg] == self.levels[u_lg] + 1 and res_cap_lg_val > 0)
